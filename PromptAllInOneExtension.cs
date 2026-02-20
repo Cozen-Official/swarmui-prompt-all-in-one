@@ -818,7 +818,7 @@ public class PromptAllInOneExtension : Extension
         string key = context.Request.Query["key"].ToString();
         string tagsPath = Path.GetFullPath(Path.Combine(ExtFolder, "tags"));
         string filePath = Path.GetFullPath(Path.Combine(tagsPath, $"{SanitizeKey(key)}.csv"));
-        if (!File.Exists(filePath) || !filePath.StartsWith(tagsPath + Path.DirectorySeparatorChar) && filePath != tagsPath)
+        if (!File.Exists(filePath) || !filePath.StartsWith(tagsPath + Path.DirectorySeparatorChar, System.StringComparison.OrdinalIgnoreCase))
         {
             context.Response.StatusCode = 404;
             return;
