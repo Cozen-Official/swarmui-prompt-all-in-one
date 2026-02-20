@@ -1,0 +1,61 @@
+
+class ImageBatcherClass {
+
+    doGenerate() {
+        resetBatchIfNeeded();
+        let batch_id = mainGenHandler.getBatchId();
+        let inData = {
+            'baseParams': getGenInput(),
+            'input_folder': getRequiredElementById('ext_image_batcher_inputfolder').value,
+            'output_folder': getRequiredElementById('ext_image_batcher_outputfolder').value,
+            'init_image': getRequiredElementById('ext_image_batcher_use_as_init').checked,
+            'revision': getRequiredElementById('ext_image_batcher_use_as_revision').checked,
+            'controlnet': getRequiredElementById('ext_image_batcher_use_as_controlnet').checked,
+            'append_filename_to_prompt': getRequiredElementById('ext_image_batcher_append_filename_to_prompt').checked,
+            'resMode': getRequiredElementById('ext_image_batcher_res_mode').value
+        };
+        let timeLastGenHit = [Date.now()];
+        let images = {};
+        let discardable = {};
+        makeWSRequestT2I('ImageBatchRun', inData, data => {
+            mainGenHandler.internalHandleData(data, images, discardable, timeLastGenHit, inData.baseParams, null, null, false);
+        });
+    }
+
+    register() {
+        let doGenWrapper = () => {
+            currentModelHelper.ensureCurrentModel(() => {
+                if (document.getElementById('current_model').value == '') {
+                    showError("Cannot run generate batch, no model selected.");
+                    return;
+                }
+                this.doGenerate();
+            });
+        };
+        this.mainDiv = registerNewTool('image_batcher', 'Image Edit Batcher', 'Run Batch', doGenWrapper);
+        this.mainDiv.innerHTML = `The Image Batcher tool lets you run a batch of images from an arbitrary local file folder through SD and export to another folder. Use the settings below to pick which folders, and which values the images shall be fed as inputs to, then click the primary Generate button above.<br><b>IMPORTANT:</b> make sure the parameters you're using are enabled. If you're using batched Inits, you need the Init Image parameter group enabled!<br>`
+            + makeTextInput(null, 'ext_image_batcher_inputfolder', '', 'Input Folder', 'Folder path for input images.', '', 'normal', 'Folder path for input images.\nThis folder should contain a non-recursive single layer of image files (png/jpg).', false, true, true)
+            + makeTextInput(null, 'ext_image_batcher_outputfolder', '', 'Output Folder', 'Folder path for image output.', '', 'normal', 'Folder path for image output.\nIt is highly recommended that this is an empty folder.', false, true, true)
+            + makeCheckboxInput(null, 'ext_image_batcher_use_as_init', '', 'Use As Init', 'Whether to use the image as the Init Image parameter.', true, false, true, true)
+            + makeCheckboxInput(null, 'ext_image_batcher_use_as_controlnet', '', 'Use As ControlNet Input', 'Whether to use the image as input to ControlNet (only applies if a ControlNet model is enabled).', true, false, true, true)
+            + makeCheckboxInput(null, 'ext_image_batcher_use_as_revision', '', 'Use As Image Prompt', 'Whether to use the image as an Image Prompting input.', false, false, true, true)
+            + makeCheckboxInput(null, 'ext_image_batcher_append_filename_to_prompt', '', 'Append Filename to Prompt', 'Whether to append the filename to the prompt.', false, false, true, true)
+            + `Resolution: <select id="ext_image_batcher_res_mode"><option>From Parameter</option><option>From Image</option><option>Scale To Model</option><option>Scale To Model Or Above</option></select>`;
+        toolSelector.addEventListener('change', () => {
+            if (toolSelector.value == 'image_batcher') {
+                showRevisionInputs();
+            }
+            else {
+                autoRevealRevision();
+            }
+        });
+        revisionRevealerSources.push(() => {
+            return toolSelector.value == 'image_batcher';
+        });
+    }
+}
+
+let extensionImageBatcher = new ImageBatcherClass();
+sessionReadyCallbacks.push(() => {
+    extensionImageBatcher.register();
+});

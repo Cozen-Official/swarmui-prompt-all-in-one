@@ -1,0 +1,112 @@
+﻿@page
+@{
+    ViewData["Title"] = "Page is loading...";
+    GeneratePageModel pageModel = new(HttpContext);
+    string doCheckForUpdates = Program.ServerSettings.Maintenance.CheckForUpdates ? "true" : "false";
+}
+@section Header {
+    <link rel="stylesheet" href="css/genpage.css?vary=@Utilities.VaryID" />
+}
+
+@if (!Program.ServerSettings.IsInstalled)
+{
+    <script>
+        window.location.href = "Install";
+    </script>
+    return;
+}
+@if (pageModel.IsLoginEnabled && pageModel.User is null)
+{
+    <script>
+        window.location.href = "Login";
+    </script>
+    return;
+}
+<script>
+    window.alwaysRefreshOnLoad = @pageModel.AlwaysRefreshOnLoad;
+    window.instanceTitle = "@pageModel.InstanceTitle";
+    window.comfy_features = {};
+    window.checkForUpdatesAutomatically = @doCheckForUpdates;
+    @foreach (InstallableFeatures.ComfyInstallableFeature feature in InstallableFeatures.ComfyFeatures.Values)
+    {
+        <text>
+            window.comfy_features["@feature.ID"] = {
+                "display_name": "@feature.DisplayName",
+                "id": "@feature.ID",
+                "url": "@feature.URL",
+                "author": "@feature.Author",
+                "notice": "@(new HtmlString(Utilities.EscapeJsonString(feature.Notice)))"
+            };
+        </text>
+    }
+</script>
+
+<ul class="nav nav-tabs" role="tablist" id="toptablist">
+    <li class="nav-item" role="presentation" data-requiredpermission="comfy_dynamic_custom_workflows,simple_tab">
+        <a class="nav-link translate" data-bs-toggle="tab" href="#Simple" id="simpletabbutton" aria-selected="false" tabindex="-1" role="tab">Simple</a>
+    </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link active translate" data-bs-toggle="tab" href="#Text2Image" id="text2imagetabbutton" aria-selected="true" role="tab">Generate</a>
+    </li>
+    @WebServer.T2ITabHeader
+    <li class="nav-item" role="presentation" data-requiredpermission="utilities_tab">
+        <a class="nav-link translate" data-bs-toggle="tab" href="#utilities_tab" id="utilitiestabbutton" aria-selected="false" tabindex="-1" role="tab">Utilities</a>
+    </li>
+    <li class="nav-item" role="presentation" data-requiredpermission="user_tab">
+        <a class="nav-link translate" data-bs-toggle="tab" href="#user_tab" id="usersettingstabbutton" aria-selected="false" tabindex="-1" role="tab">User</a>
+    </li>
+    <li class="nav-item" role="presentation" data-requiredpermission="view_server_tab">
+        <a class="nav-link translate" data-bs-toggle="tab" href="#server_tab" id="servertabbutton" aria-selected="false" tabindex="-1" role="tab">Server</a>
+    </li>
+    <li class="nav-item ms-auto" role="presentation">
+        <a class="nav-link translate" style="opacity:0" data-bs-toggle="tab" aria-selected="false" tabindex="-1" role="tab" disabled>Quick Tools Space</a>
+    </li>
+</ul>
+<div class="tab-content tab-hundred">
+    <div class="tab-pane tab-pane-vw" id="Simple" role="tabpanel">
+        @await Html.PartialAsync("_Generate/SimpleTab.cshtml", pageModel)
+    </div>
+    <div class="tab-pane show active" style="line-height:0" id="Text2Image" role="tabpanel">
+        @await Html.PartialAsync("_Generate/GenerateTab.cshtml", pageModel)
+    </div>
+    @WebServer.T2ITabBody
+    <div class="tab-pane tab-pane-vw tab-no-scroll" id="utilities_tab" role="tabpanel">
+        @await Html.PartialAsync("_Generate/UtilitiesTab.cshtml", pageModel)
+    </div>
+    <div class="tab-pane tab-pane-vw tab-no-scroll" id="user_tab" role="tabpanel">
+        @await Html.PartialAsync("_Generate/UserTab.cshtml", pageModel)
+    </div>
+    <div class="tab-pane tab-pane-vw tab-no-scroll" id="server_tab" role="tabpanel">
+        @await Html.PartialAsync("_Generate/ServerTab.cshtml", pageModel)
+    </div>
+</div>
+
+@section Scripts {
+    <script src="js/lib/exif-reader.min.js"></script>
+    <script src="js/genpage/gentab/welcomemessages.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/server/backends.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/helpers/browsers.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/gentab/presets.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/gentab/wildcards.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/gentab/loras.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/gentab/models.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/gentab/params.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/gentab/prompttools.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/utiltab.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/server/servertab.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/usertab.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/helpers/image_editor.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/helpers/generatehandler.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/simpletab.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/gentab/layout.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/helpers/metadatahelpers.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/gentab/generatecontrols.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/gentab/currentimagehandler.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/gentab/outputhistory.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/main.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/helpers/settings_editor.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/server/logs.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/helpers/ui_improvements.js?vary=@Utilities.VaryID"></script>
+    @WebServer.PageFooterExtra
+    <script src="js/genpage/helpers/finalscript.js?vary=@Utilities.VaryID"></script>
+}
