@@ -1,0 +1,954 @@
+/** Collection of helper functions and data related to presets. */
+class PresetHelpers {
+
+    constructor() {
+        this.imageBlockElem = getRequiredElementById('new_preset_image_block');
+        let imageHtml = makeImageInput(null, 'new_preset_image', null, 'Image', 'Image', true, false);
+        this.imageBlockElem.innerHTML = imageHtml;
+        this.imageElem = getRequiredElementById('new_preset_image');
+        this.enableImageElem = getRequiredElementById('new_preset_image_toggle');
+    }
+
+    renderCurrentPresetUpdate() {
+        updatePresetList();
+        presetBrowser?.rerender();
+    }
+
+    removePresetByTitle(presetTitle) {
+        if (!presetTitle?.trim()) {
+            return;
+        }
+        let index = currentPresets.findIndex(p => p.title == presetTitle);
+        if (index >= 0) {
+            currentPresets.splice(index, 1);
+            this.renderCurrentPresetUpdate();
+        }
+    }
+
+    addPreset(presetData) {
+        if (!currentPresets.some(p => p.title == presetData.title)) {
+            currentPresets.push(presetData);
+            this.renderCurrentPresetUpdate();
+        }
+    }
+
+    addPresetByTitle(presetTitle) {
+        if (!presetTitle?.trim()) {
+            return;
+        }
+        let presetData = allPresetsUnsorted?.find(p => p.title == presetTitle);
+        if (presetData) {
+            this.addPreset(presetData);
+        }
+        else {
+            console.log(`Preset ${presetTitle} not found, cannot add to current`);
+        }
+    }
+}
+
+/** Collection of helper functions and data related to presets, just an instance of {@link PresetHelpers}. */
+let presetHelpers = new PresetHelpers();
+
+/** Manages preset links for models and LoRAs. */
+class ModelPresetLinkManager {
+
+    constructor() {
+        this.links = {};
+    }
+
+    getLinks(subtype, modelName) {
+        return this.links[subtype]?.[cleanModelName(modelName)] || [];
+    }
+
+    setLink(subtype, modelName, presetTitle) {
+        // TODO: Static single set is silly. There should be a multi-select in the UI for this.
+        modelName = cleanModelName(modelName);
+        if (!presetTitle?.trim()) {
+            this.clearLinks(subtype, modelName);
+            return;
+        }
+        this.links[subtype] ??= {};
+        this.links[subtype][modelName] ??= [];
+        if (this.links[subtype][modelName].length != 1 || this.links[subtype][modelName][0] != presetTitle) {
+            this.links[subtype][modelName] = [presetTitle];
+            this.save();
+        }
+    }
+
+    addLink(subtype, modelName, presetTitle) {
+        modelName = cleanModelName(modelName);
+        if (!presetTitle?.trim()) {
+            return;
+        }
+        this.links[subtype] ??= {};
+        this.links[subtype][modelName] ??= [];
+        if (!this.links[subtype][modelName].includes(presetTitle)) {
+            this.links[subtype][modelName].push(presetTitle);
+            this.save();
+        }
+    }
+
+    clearLinks(subtype, modelName) {
+        modelName = cleanModelName(modelName);
+        if (this.links[subtype]?.[modelName]) {
+            delete this.links[subtype]?.[modelName];
+            this.save();
+        }
+    }
+
+    loadFromServer(data) {
+        this.links = data ?? {};
+    }
+
+    removePresetsFrom(subtype, modelName) {
+        for (let presetTitle of this.getLinks(subtype, modelName)) {
+            presetHelpers.removePresetByTitle(presetTitle);
+        }
+    }
+
+    /** Adds all presets for the given model. */
+    addPresetsFrom(subtype, modelName) {
+        for (let presetTitle of this.getLinks(subtype, modelName)) {
+            presetHelpers.addPresetByTitle(presetTitle);
+        }
+    }
+
+    /**
+     * Builds a preset link selector for models.
+     * @param {string} subtype Model sub-type: eg 'Stable-Diffusion' or 'LoRA'
+     * @param {string} modelName Name of the model
+     * @param {string} selectId The ID to assign to the select element (e.g., 'edit_model_preset_id')
+     */
+    buildPresetLinkSelectorForModel(subtype, modelName, selectId) {
+        let compatiblePresets = [];
+        if (allPresetsUnsorted && allPresetsUnsorted.length > 0) {
+            for (let preset of allPresetsUnsorted) {
+                let presetData = preset.data || preset;
+                if (presetData && presetData.title) {
+                    compatiblePresets.push(presetData);
+                }
+            }
+        }
+        let select = getRequiredElementById(selectId);
+        select.innerHTML = '';
+        let option = document.createElement('option');
+        option.value = '';
+        option.innerText = '(None)';
+        select.appendChild(option);
+        for (let preset of compatiblePresets) {
+            option = document.createElement('option');
+            option.value = preset.title;
+            option.innerText = preset.title;
+            select.appendChild(option);
+        }
+        let currentLinks = this.getLinks(subtype, modelName);
+        if (currentLinks.length > 0) {
+            select.value = currentLinks[0];
+        }
+    }
+
+    /** Saves all model preset links to the server. */
+    save() {
+        genericRequest('SetPresetLinks', this.links, data => {});
+    }
+}
+
+/** Instance of {@link ModelPresetLinkManager} for managing model and LoRA preset links. */
+let modelPresetLinkManager = new ModelPresetLinkManager();
+
+//////////// TODO: Merge all the below into the classes above
+
+let allPresets = [];
+let allPresetsUnsorted = [];
+let currentPresets = [];
+
+let preset_to_edit = null;
+
+function togglePresetStar(preset) {
+    preset.data.is_starred = !preset.data.is_starred;
+    genericRequest('AddNewPreset', {
+        title: preset.data.title,
+        description: preset.data.description,
+        param_map: preset.data.param_map,
+        preview_image: preset.data.preview_image,
+        is_edit: true,
+        editing: preset.data.title,
+        is_starred: preset.data.is_starred
+    }, data => { });
+    presetBrowser.update();
+}
+
+function fixPresetParamClickables() {
+    for (let param of gen_param_types) {
+        doToggleEnable(`preset_input_${param.id}`);
+    }
+}
+
+function getPresetByTitle(title) {
+    title = title.toLowerCase();
+    return allPresets.find(p => p.title.toLowerCase() == title);
+}
+
+function getPresetTypes(prefix) {
+    return gen_param_types.filter(type => !type.toggleable || getRequiredElementById(`${prefix}_${type.id}_toggle`).checked);
+}
+
+function clearPresetView() {
+    preset_to_edit = null;
+    getRequiredElementById('preset_advanced_options_checkbox').checked = false;
+    preset_toggle_advanced();
+    getRequiredElementById('new_preset_name').value = '';
+    getRequiredElementById('preset_description').value = '';
+    getRequiredElementById('new_preset_modal_error').value = '';
+    clearMediaFileInput(presetHelpers.imageElem);
+    presetHelpers.enableImageElem.checked = false;
+    triggerChangeFor(presetHelpers.enableImageElem);
+    for (let type of gen_param_types) {
+        try {
+            let elem = getRequiredElementById('input_' + type.id);
+            let presetElem = getRequiredElementById('preset_input_' + type.id);
+            if (type.type == "boolean") {
+                presetElem.checked = elem.checked;
+            }
+            else if (type.type == "text") {
+                presetElem.value = "{value} " + elem.value;
+            }
+            else if (type.type == "list" && presetElem.tagName == "SELECT") {
+                let selected = [...elem.selectedOptions].map(o => o.value);
+                $(presetElem).val(selected);
+                $(presetElem).trigger('change');
+            }
+            else {
+                presetElem.value = elem.value;
+            }
+            triggerChangeFor(presetElem);
+            getRequiredElementById(presetElem.id + '_toggle').checked = false;
+            doToggleEnable(presetElem.id);
+        }
+        catch (e) {
+            console.log(`Something went wrong while clearing preset param ${type.id}: ${e}`);
+            console.log(e);
+        }
+    }
+}
+
+let createNewPresetTitle = translatable('Create New Preset');
+let editPresetTitle = translatable('Edit Preset');
+
+function create_new_preset_button() {
+    clearPresetView();
+    getRequiredElementById('new_preset_name').value = presetBrowser.folder;
+    getRequiredElementById('new_preset_modal_title').innerText = createNewPresetTitle.get();
+    let curImg = currentImageHelper.getCurrentImage();
+    presetHelpers.enableImageElem.checked = false;
+    let run = () => {
+        triggerChangeFor(presetHelpers.enableImageElem);
+        fixPresetParamClickables();
+        $('#add_preset_modal').modal('show');
+    };
+    if (curImg && curImg.tagName == 'IMG') {
+        setMediaFileDirect(presetHelpers.imageElem, curImg.src, 'image', 'cur', 'cur', () => {
+            presetHelpers.enableImageElem.checked = false;
+            run();
+        });
+    }
+    else {
+        run();
+    }
+}
+
+function close_create_new_preset() {
+    $('#add_preset_modal').modal('hide');
+}
+
+function save_new_preset() {
+    let errorOut = getRequiredElementById('new_preset_modal_error');
+    let name = getRequiredElementById('new_preset_name').value.trim().replaceAll('\\', '/').replace(/^\/+/, '');
+    if (name == '') {
+        errorOut.innerText = "Must set a Preset Name.";
+        return;
+    }
+    if (name.endsWith('/')) {
+        errorOut.innerText = "Cannot save a preset as a folder, give it a filename, or remove the trailing slash";
+        return;
+    }
+    let description = getRequiredElementById('preset_description').value;
+    let data = {};
+    for (let type of getPresetTypes(`preset_input`)) {
+        let elem = getRequiredElementById(`preset_input_${type.id}`);
+        if (!getRequiredElementById(`preset_input_${type.id}_toggle`).checked) {
+            continue;
+        }
+        if (type.type == "boolean") {
+            data[type.id] = elem.checked ? "true" : "false";
+        }
+        else if (type.type == "list" && elem.tagName == "SELECT") {
+            let selected = [...elem.selectedOptions].map(o => o.value);
+            data[type.id] = selected.join(',');
+        }
+        else {
+            data[type.id] = elem.value;
+        }
+    }
+    if (Object.keys(data).length == 0) {
+        errorOut.innerText = "Must enable at least one parameter.";
+        return;
+    }
+    let toSend = { title: name, description: description, param_map: data };
+    if (preset_to_edit) {
+        toSend['preview_image'] = preset_to_edit.preview_image;
+        toSend['is_edit'] = true;
+        toSend['editing'] = preset_to_edit.title;
+        toSend['is_starred'] = preset_to_edit.is_starred;
+    }
+    let complete = () => {
+        genericRequest('AddNewPreset', toSend, data => {
+            if (Object.keys(data).includes("preset_fail")) {
+                errorOut.innerText = data.preset_fail;
+                return;
+            }
+            loadUserData();
+            $('#add_preset_modal').modal('hide');
+        });
+    };
+    if (presetHelpers.enableImageElem.checked) {
+        let imageVal = getInputVal(presetHelpers.imageElem);
+        if (imageVal) {
+            toSend['preview_image_metadata'] = currentMetadataVal;
+            imageToData(imageVal, (dataURL) => {
+                toSend['preview_image'] = dataURL;
+                complete();
+            }, true);
+            return;
+        }
+        else {
+            delete toSend['preview_image'];
+        }
+    }
+    complete();
+}
+
+function preset_toggle_advanced() {
+    let advancedArea = getRequiredElementById('new_preset_modal_advanced_inputs');
+    let toggler = getRequiredElementById('preset_advanced_options_checkbox');
+    advancedArea.style.display = toggler.checked ? 'block' : 'none';
+    fixPresetParamClickables();
+}
+
+function preset_toggle_advanced_checkbox_manual() {
+    let toggler = getRequiredElementById('preset_advanced_options_checkbox');
+    toggler.checked = !toggler.checked;
+    preset_toggle_advanced();
+}
+
+function preset_toggle_hidden() {
+    let hiddenArea = getRequiredElementById('new_preset_modal_hidden_inputs');
+    let toggler = getRequiredElementById('preset_hidden_options_checkbox');
+    hiddenArea.style.display = toggler.checked ? 'block' : 'none';
+    fixPresetParamClickables();
+}
+
+function preset_toggle_hidden_checkbox_manual() {
+    let toggler = getRequiredElementById('preset_hidden_options_checkbox');
+    toggler.checked = !toggler.checked;
+    preset_toggle_hidden();
+}
+
+function updatePresetList() {
+    let view = getRequiredElementById('current_preset_list_view');
+    view.innerHTML = '';
+    for (let param of gen_param_types) {
+        getRequiredElementById(`input_${param.id}`).disabled = false;
+        if (param.toggleable) {
+            getRequiredElementById(`input_${param.id}_toggle`).disabled = false;
+        }
+    }
+    let overrideCount = 0;
+    for (let preset of currentPresets) {
+        let div = createDiv(null, 'preset-in-list');
+        div.innerText = preset.title;
+        let removeButton = createDiv(null, 'preset-remove-button');
+        removeButton.innerHTML = '&times;';
+        removeButton.title = "Remove this preset";
+        removeButton.addEventListener('click', () => {
+            currentPresets.splice(currentPresets.indexOf(preset), 1);
+            updatePresetList();
+            presetBrowser.rerender();
+        });
+        div.appendChild(removeButton);
+        view.appendChild(div);
+        for (let key of Object.keys(preset.param_map)) {
+            let param = gen_param_types.filter(p => p.id == key)[0];
+            if (param) {
+                if (param.type != "text" || !preset.param_map[key].includes("{value}")) {
+                    let elem = getRequiredElementById(`input_${param.id}`);
+                    overrideCount += 1;
+                    elem.disabled = true;
+                    if (param.toggleable) {
+                        getRequiredElementById(`input_${param.id}_toggle`).disabled = true;
+                    }
+                }
+            }
+        }
+    }
+    localStorage.setItem('current_presets', currentPresets.map(p => p.title).join('|||'));
+    getRequiredElementById('current_presets_wrapper').style.display = currentPresets.length > 0 ? 'inline-block' : 'none';
+    getRequiredElementById('preset_info_slot').innerText = ` (${currentPresets.length}, overriding ${overrideCount} params)`;
+    setTimeout(() => {
+        genTabLayout.reapplyPositions();
+    }, 1);
+}
+
+function selectInitialPresetList() {
+    let presetList = localStorage.getItem('current_presets');
+    if (presetList) {
+        currentPresets = presetList.split('|||').map(p => getPresetByTitle(p)).filter(p => p);
+        updatePresetList();
+        presetBrowser.rerender();
+    }
+}
+
+function applyOnePreset(preset) {
+    for (let key of Object.keys(preset.param_map)) {
+        let param = gen_param_types.filter(p => p.id == key)[0];
+        if (param) {
+            let elem = getRequiredElementById(`input_${param.id}`);
+            let val = preset.param_map[key];
+            let rawVal = getInputVal(elem);
+            if (typeof val == "string" && val.includes("{value}")) {
+                let low = elem.value.toLowerCase();
+                let end = [low.indexOf('<segment:'), low.indexOf('<object:'), low.indexOf('<region:')].filter(i => i != -1).sort()[0];
+                if (end !== undefined && end != -1) {
+                    val = val.replace("{value}", elem.value.substring(0, end).trim()) + ' ' + elem.value.substring(end).trim();
+                }
+                else {
+                    val = val.replace("{value}", elem.value);
+                }
+            }
+            else if (key == 'loras' && rawVal) {
+                val = rawVal + "," + val;
+            }
+            else if (key == 'loraweights' && rawVal) {
+                val = rawVal + "," + val;
+            }
+            setDirectParamValue(param, val);
+            if (param.group && param.group.toggles) {
+                let toggler = document.getElementById(`input_group_content_${param.group.id}_toggle`);
+                toggler.checked = true;
+                doToggleGroup(`input_group_content_${param.group.id}`);
+            }
+        }
+    }
+}
+
+function apply_presets() {
+    for (let preset of currentPresets) {
+        applyOnePreset(preset);
+    }
+    currentPresets = [];
+    updatePresetList();
+    presetBrowser.rerender();
+}
+
+function duplicatePreset(preset) {
+    genericRequest('DuplicatePreset', { preset: preset.title }, data => {
+        loadUserData();
+    });
+}
+
+function editPreset(preset) {
+    clearPresetView();
+    preset_to_edit = preset;
+    presetHelpers.enableImageElem.checked = false;
+    getRequiredElementById('new_preset_name').value = preset.title;
+    getRequiredElementById('preset_description').value = preset.description;
+    getRequiredElementById('new_preset_modal_title').innerText = editPresetTitle.get();
+    for (let key of Object.keys(preset.param_map)) {
+        let type = gen_param_types.filter(p => p.id == key)[0];
+        if (type) {
+            let presetElem = getRequiredElementById(`preset_input_${type.id}`);
+            setDirectParamValue(type, preset.param_map[key], presetElem);
+            getRequiredElementById(`preset_input_${type.id}_toggle`).checked = true;
+            doToggleEnable(presetElem.id);
+        }
+    }
+    let curImg = currentImageHelper.getCurrentImage();
+    let run = () => {
+        triggerChangeFor(presetHelpers.enableImageElem);
+        $('#add_preset_modal').modal('show');
+        fixPresetParamClickables();
+    };
+    if (curImg && curImg.tagName == 'IMG') {
+        setMediaFileDirect(presetHelpers.imageElem, curImg.src, 'image', 'cur', 'cur', () => {
+            presetHelpers.enableImageElem.checked = false;
+            run();
+        });
+    }
+    else {
+        run();
+    }
+}
+
+function getPresetSortValue(sortBy, preset) {
+    switch (sortBy) {
+        case 'Name': return preset.title.substring(preset.title.lastIndexOf('/') + 1);
+        case 'Path': return preset.title;
+        case 'Default': return '';
+        default: return preset.title;
+    }
+}
+
+/** A preset comparison function which can be used to sort presets. */
+function presetSortCompare(sortBy, a, b) {
+    if (a.is_starred && !b.is_starred) {
+        return -1;
+    }
+    if (!a.is_starred && b.is_starred) {
+        return 1;
+    }
+    let valueA = getPresetSortValue(sortBy, a);
+    let valueB = getPresetSortValue(sortBy, b);
+    return valueA.localeCompare(valueB);
+}
+
+/** Sorts the presets based on the current sort options. */
+function sortPresets() {
+    let sortBy = localStorage.getItem('preset_list_sort_by') || 'Default';
+    let reverse = localStorage.getItem('preset_list_sort_reverse') == 'true';
+    let preList = allPresetsUnsorted.filter(p => p.title.toLowerCase() == "default" || p.title.toLowerCase() == "preview");
+    let mainList = allPresetsUnsorted.filter(p => p.title.toLowerCase() != "default" && p.title.toLowerCase() != "preview");
+    mainList.sort((a, b) => presetSortCompare(sortBy, a, b));
+    if (reverse) {
+        mainList.reverse();
+    }
+    allPresets = preList.concat(mainList);
+}
+
+function listPresetFolderAndFiles(path, isRefresh, callback, depth) {
+    let sortElem = document.getElementById('preset_list_sort_by');
+    let fix = null;
+    if (!sortElem) { // first call happens before headers are built atm
+        fix = () => {
+            let sortElem = document.getElementById('preset_list_sort_by');
+            let sortReverseElem = document.getElementById('preset_list_sort_reverse');
+            sortElem.addEventListener('change', () => {
+                localStorage.setItem('preset_list_sort_by', sortElem.value);
+                presetBrowser.lightRefresh();
+            });
+            sortReverseElem.addEventListener('change', () => {
+                localStorage.setItem('preset_list_sort_reverse', sortReverseElem.checked);
+                presetBrowser.lightRefresh();
+            });
+        }
+    }
+    let proc = () => {
+        let prefix = path == '' ? '' : (path.endsWith('/') ? path : `${path}/`);
+        let folders = [];
+        let files = [];
+        sortPresets();
+        for (let preset of allPresets) {
+            if (preset.title.startsWith(prefix)) {
+                let subPart = preset.title.substring(prefix.length);
+                let slashes = subPart.split('/').length - 1;
+                if (slashes > 0) {
+                    let folderPart = subPart.substring(0, subPart.lastIndexOf('/'));
+                    let subfolders = folderPart.split('/');
+                    for (let i = 1; i <= subfolders.length && i <= depth; i++) {
+                        let folder = subfolders.slice(0, i).join('/');
+                        if (!folders.includes(folder)) {
+                            folders.push(folder);
+                        }
+                    }
+                }
+                if (slashes < depth) {
+                    files.push({ name: preset.title, data: preset });
+                }
+            }
+        }
+        callback(folders, files);
+        if (fix) {
+            fix();
+        }
+    };
+    if (isRefresh) {
+        genericRequest('GetMyUserData', {}, data => {
+            allPresetsUnsorted = data.presets;
+            modelPresetLinkManager.loadFromServer(data.model_preset_links);
+            proc();
+        });
+    }
+    else {
+        proc();
+    }
+}
+
+function describePreset(preset) {
+    let buttons = [
+        { label: 'Toggle', onclick: () => selectPreset(preset) },
+        { label: 'Direct Apply', onclick: () => applyOnePreset(preset.data) },
+        { label: preset.data.is_starred ? 'Unstar' : 'Star', onclick: () => togglePresetStar(preset) },
+        { label: 'Edit Preset', onclick: () => editPreset(preset.data) },
+        { label: 'Duplicate Preset', onclick: () => duplicatePreset(preset.data) },
+        { label: 'Export Preset', onclick: () => exportOnePresetButton(preset.data) },
+        { label: 'Delete Preset', onclick: () => {
+            if (confirm("Are you sure want to delete that preset?")) {
+                genericRequest('DeletePreset', { preset: preset.data.title }, data => {
+                    loadUserData();
+                });
+            }
+        } }
+    ];
+    let paramText = Object.keys(preset.data.param_map).map(key => `${key}: ${preset.data.param_map[key]}`);
+    let description = `${preset.data.title}:\n${preset.data.description}\n\n${paramText.join('\n')}`;
+    let className = currentPresets.some(p => p.title == preset.data.title) ? 'preset-block-selected preset-block' : 'preset-block';
+    let name = preset.data.title;
+    let index = name.lastIndexOf('/');
+    if (index != -1) {
+        name = name.substring(index + 1);
+    }
+    if (preset.data.is_starred) {
+        className += ' model-starred';
+    }
+    let searchable = description;
+    let displayFields = new Set((getUserSetting('ui.presetlistdetailsfields', '') || 'path,description,params').split(',').map(s => cleanParamName(s)));
+    let displayParams = Array.from(displayFields).map(field => {
+        if (field == 'path') {
+            return {name: field, value: preset.data.title};
+        }
+        else if (field == 'name') {
+            return {name: field, value: name};
+        }
+        else if (field == 'description') {
+            return {name: field, value: preset.data.description || ''};
+        }
+        else if (field == 'params') {
+            return {name: field, value: paramText.join('\n') };
+        }
+        else {
+            return {name: field, value: `${preset.data.param_map[field] ?? ''}`};
+        }
+    });
+    let detail_list = displayParams.map(p => escapeHtmlNoBr(p.value).replaceAll('\n', '&emsp;'));
+    return { name, description: escapeHtml(description), buttons, 'image': preset.data.preview_image, className, searchable, detail_list };
+}
+
+function selectPreset(preset) {
+    if (!currentPresets.some(p => p.title == preset.data.title)) {
+        currentPresets.push(preset.data);
+    }
+    else {
+        currentPresets.splice(currentPresets.indexOf(preset.data), 1);
+    }
+    updatePresetList();
+    presetBrowser.rerender();
+}
+
+function clearPresets() {
+    currentPresets = [];
+    updatePresetList();
+    presetBrowser.rerender();
+}
+
+let presetBrowser = new GenPageBrowserClass('preset_list', listPresetFolderAndFiles, 'presetbrowser', 'Cards', describePreset, selectPreset,
+    `<label for="preset_list_sort_by">Sort:</label> <select id="preset_list_sort_by"><option>Default</option><option>Name</option><option>Path</option></select> <input type="checkbox" id="preset_list_sort_reverse"> <label for="preset_list_sort_reverse">Reverse</label>
+    <button id="preset_list_create_new_button translate" class="basic-button" onclick="create_new_preset_button()">Create New</button>
+    <button id="preset_list_import_button translate" class="basic-button" onclick="importPresetsButton()">Import</button>
+    <button id="preset_list_export_button translate" class="basic-button" onclick="exportPresetsButton()">Export All</button>
+    <button id="preset_list_apply_button translate" class="basic-button" onclick="apply_presets()" title="Apply all current presets directly to your parameter list.">Apply</button>`);
+
+function importPresetsButton() {
+    getRequiredElementById('import_presets_textarea').value = '';
+    getRequiredElementById('import_presets_activate_button').disabled = true;
+    $('#import_presets_modal').modal('show');
+}
+
+function importPresetsToData(text) {
+    function addValueToPrompt(text) {
+        if (text.includes('{value}')) {
+            return text;
+        }
+        else if (text.includes('{prompt}')) {
+            return text.replace('{prompt}', '{value}');
+        }
+        return '{value} ' + text;
+    }
+    if (text.trim() == '') {
+        return null;
+    }
+    if (text.startsWith('{')) {
+        return JSON.parse(text);
+    }
+    if (text.startsWith('[')) {
+        let parsed = JSON.parse(`{ "list": ${text} }`);
+        let data = {};
+        for (let item of parsed.list) {
+            if (item.name) {
+                data[item.name] = {
+                    title: item.name,
+                    description: `Imported prompt preset '${item.name}'`,
+                    preview_image: '',
+                    param_map: {
+                        prompt: addValueToPrompt(item.prompt || ''),
+                        negativeprompt: addValueToPrompt(item.negative_prompt || item.negativeprompt || '')
+                    }
+                };
+            }
+        }
+        return data;
+    }
+    if (text.startsWith('name,prompt,negative_prompt')) {
+        data = {};
+        let lines = [];
+        let isQuoted = false;
+        let piece = '';
+        let skipNext = false;
+        for (let char of text) {
+            if (char == '\\') {
+                piece += char;
+                skipNext = true;
+                continue;
+            }
+            if (skipNext) {
+                piece += char;
+                skipNext = false;
+                continue;
+            }
+            if (char == '"') {
+                isQuoted = !isQuoted;
+            }
+            if (char == '\n' && !isQuoted) {
+                lines.push(piece);
+                piece = '';
+            }
+            else {
+                piece += char;
+            }
+        }
+        lines.push(piece);
+        for (let line of lines.slice(1)) {
+            if (line.trim() == '') {
+                continue;
+            }
+            let parts = parseCsvLine(line);
+            if (parts.length < 3 || parts.length > 5) {
+                console.log(`Invalid CSV line: ${line}, splits=${parts.length}`);
+                return null;
+            }
+            let name = parts[0];
+            let prompt = parts[1];
+            let negativeprompt = parts[2];
+            if (!prompt && !negativeprompt) {
+                continue;
+            }
+            prompt = addValueToPrompt(prompt || '');
+            negativeprompt = addValueToPrompt(negativeprompt || '');
+            data[parts[0].toLowerCase()] = {
+                title: name,
+                description: `Imported prompt preset '${name}'`,
+                preview_image: '',
+                param_map: {
+                    prompt: prompt,
+                    negativeprompt: negativeprompt
+                }
+            };
+        }
+        return data;
+    }
+    if (text.includes(': ')) {
+        let data = microYamlParse(text);
+        console.log(JSON.stringify(data));
+        if (!data) {
+            return "Data doesn't look valid";
+        }
+        let result = {};
+        for (let key of Object.keys(data)) {
+            let val = data[key];
+            let prompt = val.prompt;
+            let negativeprompt = val.negativeprompt;
+            if (!prompt && val.prompt_prefix) {
+                prompt = val.prompt_prefix + ' {value} ' + val.prompt_suffix;
+            }
+            if (!negativeprompt && val.uc_prompt) {
+                negativeprompt = val.uc_prompt;
+            }
+            if (!prompt && !negativeprompt) {
+                continue;
+            }
+            prompt = addValueToPrompt(prompt || '');
+            negativeprompt = addValueToPrompt(negativeprompt || '');
+            result[key] = {
+                title: key,
+                description: `Imported prompt preset '${key}'`,
+                preview_image: '',
+                param_map: {
+                    prompt: prompt,
+                    negativeprompt: negativeprompt
+                }
+            };
+        }
+        return result;
+    }
+    return "data had no recognizable format";
+}
+
+function importPresetUpload() {
+    let file = getRequiredElementById('import_preset_uploader').files[0];
+    readFileText(file, text => {
+        getRequiredElementById('import_presets_textarea').value = text;
+        importPresetsCheck();
+    });
+}
+
+let importPresetUploadContainer = getRequiredElementById('import_preset_upload_container');
+
+importPresetUploadContainer.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.stopPropagation();
+}, false);
+importPresetUploadContainer.addEventListener('dragenter', e => {
+    e.preventDefault();
+    e.stopPropagation();
+}, false);
+importPresetUploadContainer.addEventListener('dragleave', e => {
+    e.preventDefault();
+    e.stopPropagation();
+}, false);
+importPresetUploadContainer.addEventListener('drop', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    readFileText(e.dataTransfer.files[0], text => {
+        getRequiredElementById('import_presets_textarea').value = text;
+        importPresetsCheck();
+    });
+}, false);
+
+function importPresetsCheck() {
+    let text = getRequiredElementById('import_presets_textarea').value;
+    let errorBox = getRequiredElementById('import_preset_modal_error');
+    let activateButton = getRequiredElementById('import_presets_activate_button');
+    activateButton.disabled = true;
+    errorBox.innerText = '';
+    errorBox.className = 'modal_error_bottom';
+    if (text.trim() == '') {
+        return;
+    }
+    let data;
+    try {
+        data = importPresetsToData(text);
+    }
+    catch (e) {
+        console.log(e);
+        errorBox.innerText = 'Error parsing data: ' + e;
+        return;
+    }
+    if (typeof data == 'string') {
+        errorBox.innerText = data;
+        return;
+    }
+    if (!data) {
+        errorBox.innerText = 'Data input looks invalid.';
+        return;
+    }
+    let willBreak = [];
+    for (let key of Object.keys(data)) {
+        if (allPresets.some(p => p.title == key)) {
+            willBreak.push(key);
+        }
+    }
+    if (willBreak.length > 0) {
+        let canOverwrite = getRequiredElementById('import_presets_overwrite').checked;
+        if (!canOverwrite) {
+            errorBox.innerText = `Would overwrite ${willBreak.length} preset(s): ${willBreak.join(', ')}.`;
+            activateButton.disabled = true;
+            return;
+        }
+        errorBox.className = 'modal_success_bottom';
+        errorBox.innerText = `Will import ${Object.keys(data).length}, overwriting ${willBreak} presets.`;
+    }
+    errorBox.className = 'modal_success_bottom';
+    errorBox.innerText = `Will import ${Object.keys(data).length} presets.`;
+    activateButton.disabled = false;
+}
+
+function importPresetsActivate() {
+    let data = importPresetsToData(getRequiredElementById('import_presets_textarea').value);
+    let expectedCount = Object.keys(data).length;
+    let overwrite = getRequiredElementById('import_presets_overwrite').checked;
+    let ranCount = 0;
+    let failedCount = 0;
+    let errorBox = getRequiredElementById('import_preset_modal_error');
+    getRequiredElementById('import_presets_activate_button').disabled = true;
+    errorBox.innerText = '';
+    errorBox.className = 'modal_success_bottom';
+    console.log(JSON.stringify(data));
+    for (let key of Object.keys(data)) {
+        let preset = data[key];
+        let toSend = { title: key, description: preset.description, preview_image: preset.preview_image, param_map: preset.param_map, is_edit: overwrite, editing: key };
+        genericRequest('AddNewPreset', toSend, data => {
+            ranCount++;
+            if (Object.keys(data).includes("preset_fail")) {
+                failedCount++;
+            }
+            if (ranCount == expectedCount) {
+                loadUserData();
+            }
+            if (failedCount > 0) {
+                errorBox.className = 'modal_error_bottom';
+                errorBox.innerText = `Imported ${ranCount} presets, ${failedCount} failed.`;
+            }
+            else {
+                errorBox.innerText = `Imported ${ranCount} presets.`;
+            }
+        });
+    }
+}
+
+exportingPresets = [];
+
+function exportOnePresetButton(preset) {
+    exportingPresets = [preset];
+    exportPresetsButton(true);
+}
+
+function exportPresetsButton(reuse = false) {
+    if (!reuse) {
+        exportingPresets = allPresets;
+    }
+    let text = '';
+    if (getRequiredElementById('export_preset_format_json').checked) {
+        let data = {};
+        for (let preset of exportingPresets) {
+            data[preset.title] = preset;
+        }
+        text = JSON.stringify(data, null, 4);
+    }
+    else { // CSV
+        text = 'name,prompt,negative_prompt,\n';
+        for (let preset of exportingPresets) {
+            if (preset.param_map.prompt || preset.param_map.negativeprompt) {
+                text += `"${preset.title.replace('"', '""')}","${(preset.param_map.prompt || '').replaceAll('"', '""')}","${(preset.param_map.negativeprompt || '').replaceAll('"', '""')}",\n`;
+            }
+        }
+    }
+    getRequiredElementById('export_presets_textarea').value = text;
+    $('#export_presets_modal').modal('show');
+}
+
+function exportPresetsDownload() {
+    let fname;
+    if (getRequiredElementById('export_preset_format_json').checked) {
+        fname = 'presets.json';
+    }
+    else {
+        fname = 'presets.csv';
+    }
+    downloadPlainText(fname, getRequiredElementById('export_presets_textarea').value);
+}
+
+function closeExportPresetViewer() {
+    $('#export_presets_modal').modal('hide');
+}
+
+function closeImportPresetViewer() {
+    $('#import_presets_modal').modal('hide');
+}

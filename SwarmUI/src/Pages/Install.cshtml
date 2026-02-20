@@ -1,0 +1,299 @@
+@page
+@{
+    ViewData["Title"] = "SwarmUI Installer";
+}
+@section Header {
+    <link rel="stylesheet" href="css/installer.css?vary=@Utilities.VaryID" />
+}
+
+@{
+    if (Program.ServerSettings.IsInstalled)
+    {
+        <script>
+            window.location.href = "Text2Image";
+        </script>
+        return;
+    }
+}
+
+<div class="headline">
+    <h1>SwarmUI Installer</h1>
+    <span class="auto-input-name translate">Language</span>
+    <ul class="nav" style="display:inline-block" role="tablist">
+        <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" id="language_dropdown_link" style="color:var(--text)" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">Language</a>
+            <div class="dropdown-menu translate-menu notranslate">
+                @foreach (string code in LanguagesHelper.PreferredLanguages)
+                {
+                    LanguagesHelper.Language lang = LanguagesHelper.Languages[code];
+                    <a class="dropdown-item" onclick="changeLanguage('@code')" href="#"><span class="translate-block-sm"><img class="translate-img" src="imgs/flags/@(code).jpg" /></span><span class="translate-block-sm2">@code</span> - @lang.Name - @lang.LocalName</a>
+                }
+                <div class="dropdown-divider"></div>
+                @foreach (string code in LanguagesHelper.SortedList.Except(LanguagesHelper.PreferredLanguages))
+                {
+                    LanguagesHelper.Language lang = LanguagesHelper.Languages[code];
+                    <a class="dropdown-item" onclick="changeLanguage('@code')" href="#"><span class="translate-block-sm"><img class="translate-img" src="imgs/flags/@(code).jpg" /></span><span class="translate-block-sm2">@code</span> - @lang.Name - @lang.LocalName</a>
+                }
+            </div>
+        </li>
+    </ul>
+    <input type="hidden" id="installer_language" value="en" />
+</div>
+<hr>
+
+<div id="section_wrapper" class="section_wrapper">
+    <div id="installer_section_license">
+        <div class="install_q_head">Legal Notice</div>
+        AI Image Generation models are subject to licensing defined by the model creator.
+        Generally all are free for personal usage, but commercial usage may come under restrictions depending on the model.
+        For example, the SDXL 1.0 Base license can be found <a target="_blank" href="https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/LICENSE.md">Here</a>.
+        <br>SwarmUI itself is free for any usage under the <a target="_blank" href="https://github.com/mcmonkeyprojects/SwarmUI/blob/master/LICENSE.txt">MIT License</a>.
+        <br>By using this software you agree to follow its license and the applicable licenses of any models included or separately downloaded.
+        @{
+            string pythonWarn = await WebUtil.NeedLinuxPythonWarn();
+            if (!string.IsNullOrWhiteSpace(pythonWarn))
+            {
+                <br><br><br>
+                <div class="alert alert-warning">
+                    <h4 class="alert-heading">Python Warning</h4>
+                    <p class="mb-0">@pythonWarn</p>
+                </div>
+                <br><br>
+            }
+            if (WebUtil.NeedGitInstallWarn())
+            {
+                <br><br><br>
+                <div class="alert alert-warning">
+                    <h4 class="alert-heading">Improper Download Warning</h4>
+                    <p class="mb-0">You seem to have downloaded SwarmUI from a source zip or similar method.
+                        <br>This is improper and will cause issues.
+                        <br>Please close this installer, delete your SwarmUI folder, and follow the <a target="_blank" href="https://github.com/mcmonkeyprojects/SwarmUI#installing-on-windows">install instructions here</a>.
+                    </p>
+                </div>
+                <br><br>
+            }
+            if (WebUtil.NeedWindowsAdminWarn())
+            {
+                <br><br><br>
+                <div class="alert alert-warning">
+                    <h4 class="alert-heading">Don't Run As Admin</h4>
+                    <p class="mb-0">You seem to be running this installer as administrator.
+                        <br>This is not necessary and will cause issues.
+                        <br>Please close this installer, and run it as a regular user.
+                    </p>
+                </div>
+                <br><br>
+            }
+        }
+    </div>
+
+    @if (WebUtil.ProbablyHasAMDGpu())
+    {
+        <div id="installer_section_amd" style="display: none;">
+            <div class="install_q_head">You don't seem to have an nvidia GPU. Do you want to install an AMD compatible version?</div>
+            <div class="install_hint">Installation works differently if you an AMD GPU instead. This will use a ROCm version, which only works on some (modern) AMD GPUs.
+                <br>If you do not have an AMD Radeon GPU, select 'No'.
+                <br>Be aware that only recent Mac, Nvidia, and AMD Radeon GPUs are fully supported in SwarmUI, others may require custom installation steps to work.
+                <br>
+                <br>Make sure you have AMD GPU drivers installed before installing Swarm.
+            </div>
+            <br>
+            <fieldset class="form-group" id="amd_selection_field">
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="amd_radio" id="amd_no" value="no">
+                    <label class="form-check-label" for="amd_no">No</label>
+                    <div class="install_hint">Do the standard install (nvidia-compatible).</div>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="amd_radio" id="amd_yes" value="yes" checked="">
+                    <label class="form-check-label" for="amd_yes">Yes</label>
+                    <div class="install_hint">Install the AMD version.</div>
+                </div>
+            </fieldset>
+        </div>
+    }
+
+    <div id="installer_section_skip" style="display: none;">
+        <div class="install_q_head">Choose install path:</div>
+        <div class="install_hint">You can always change settings later.</div>
+        <br>
+        <fieldset class="form-group" id="install_path_selection_field">
+            <div class="form-check installer-click-radio">
+                <input class="form-check-input" type="radio" name="install_path_radio" id="install_path_just_install" value="just_install">
+                <label class="form-check-label" for="install_path_just_install">Just Install</label>
+                <div class="install_hint">Installs with good defaults for personal usage (you can always customize settings later).</div>
+            </div>
+            <div class="form-check installer-click-radio">
+                <input class="form-check-input" type="radio" name="install_path_radio" id="install_path_customize" value="customize">
+                <label class="form-check-label" for="install_path_customize">Customize Settings</label>
+                <div class="install_hint">Customize theme, backend, network config, etc. before installing.</div>
+            </div>
+        </fieldset>
+    </div>
+
+    @if (WebUtil.IsWindows())
+    {
+        <div id="installer_section_shortcut" style="display: none;">
+            <div class="install_q_head">Would you like a Desktop shortcut for SwarmUI?</div>
+            <div class="install_hint">You can always delete it later.</div>
+            <br>
+            <fieldset class="form-group" id="shortcut_selection_field">
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="shortcut_radio" id="shortcut_no" value="no">
+                    <label class="form-check-label" for="shortcut_no">No</label>
+                    <div class="install_hint">Don't give me a Desktop shortcut.</div>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="shortcut_radio" id="shortcut_yes" value="yes" checked="">
+                    <label class="form-check-label" for="shortcut_yes">Yes</label>
+                    <div class="install_hint">Give me a Desktop shortcut.</div>
+                </div>
+            </fieldset>
+        </div>
+    }
+
+    <div id="installer_section_themes" style="display: none;">
+        <div class="install_q_head">Choose a theme:</div>
+        <div class="install_hint">You can always change this later in the User Settings page.</div>
+        <br>
+        <fieldset class="form-group theme_preview" id="theme_selection_field">
+            @foreach (var theme in Program.Web.RegisteredThemes.Values)
+            {
+                string themeName = $"{theme.Name.Replace(" (Legacy)","")}";
+                string themeId = $"{theme.ID}";
+                string themeIdNoUnderscore = $"{theme.ID.Replace("_", "")}";
+                <div class="form-check theme_preview_@themeId" id="theme_input_@themeId">
+                    <input class="form-check-input" type="radio" name="theme_radio" id="theme_@themeIdNoUnderscore" value="@themeId" @(themeId == "modern_dark" ? "checked" : "")>
+                    <label class="form-check-label" for="theme_@themeIdNoUnderscore">@themeName</label>
+                    <iframe class="form-check-iframe" src="ThemePreview?theme=@themeId"></iframe>
+                </div>
+            }
+        </fieldset>
+    </div>
+
+    <div id="installer_section_installed_for" style="display: none;">
+        <div class="install_q_head">Who is this SwarmUI installation going to be used by?</div>
+        <div class="install_hint">This is to determine a preset of core settings. You can always change this later.</div>
+        <br>
+        <fieldset class="form-group" id="installed_for_selection_field">
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="installed_for_radio" id="installed_for_radio_yourself" value="just_self" checked="">
+                <label class="form-check-label" for="installed_for_radio_yourself">Just Yourself On This PC</label>
+                <div class="install_hint">Disables external access entirely, sets you as always a full administrator of the installation.</div>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="installed_for_radio" id="installed_for_radio_yourselflocal" value="just_self_lan">
+                <label class="form-check-label" for="installed_for_radio_yourselflocal">Just Yourself, with LAN access</label>
+                <div class="install_hint">Enables LAN access (so you can eg open from your phone), sets you as always a full administrator of the installation.</div>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="installed_for_radio" id="installed_for_radio_friendsfamily" value="friends_and_family" disabled="">
+                <label class="form-check-label" for="installed_for_radio_friendsfamily">(WIP): Friends &amp; Family</label>
+                <div class="install_hint">Enables external access, makes it possible to register multiple accounts for the UI, generally trusted with access. You can set this up manually after install by following <a href="https://github.com/mcmonkeyprojects/SwarmUI/blob/master/docs/Sharing%20Your%20Swarm.md" target="_blank">this guide in the docs</a>.</div>
+            </div>
+            <div class="form-check disabled">
+                <input class="form-check-input" type="radio" name="installed_for_radio" id="installed_for_radio_public" value="public" disabled="">
+                <label class="form-check-label" for="installed_for_radio_public">(COMING SOON): Public Access or Untrusted Users</label>
+                <div class="install_hint">Requires registering an account to use the UI, heavily restricts access.</div>
+            </div>
+        </fieldset>
+    </div>
+
+    <div id="installer_section_backends" style="display: none;">
+        <div class="install_q_head">What backend would you like to use?</div>
+        <div class="install_hint">The backend is the internal engine that actually runs Stable Diffusion on the inside. You can change backends later.</div>
+        <br>
+        @WebUtil.ModalHeader("gpu_check_modal", "GPU Check")
+        <div class="modal-body">
+            Generally, you want a GPU with at least 8 GiB of VRAM to run properly. More is better. If you have at least 4, you'll be able to run SDv1 with lowered settings, but SDXL may be out of reach.
+            <br>&bullet; An Nvidia RTX 20-series or newer is recommended, though some older cards can still work.
+            <br>&bullet; AMD GPUs should work, but are not currently correctly scanned by SwarmUI.
+            <br>&bullet; Intel or Mac GPUs may work, but will require special configuration that this installer does not yet perform for you.
+            <br>&bullet; CPU execution is possible, but is extremely slow and not recommended.
+            <br>&bullet; If you have multiple GPUs, SwarmUI can use all of them. You will have to configure this manually in the Server Backends settings page later.
+            <hr>
+            You have: @WebUtil.CheckGPUIsSufficient()
+        </div>
+        @WebUtil.ModalFooter()
+        @if (Program.Backends.Count > 0)
+        {
+            <h4>You already have backends installed, you should probably select 'None' below.</h4>
+            <br>
+        }
+        <fieldset class="form-group" id="backend_selection_field">
+            <h3>For New Users: Install One Now</h3>
+            <br>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="backend_radio" id="backend_radio_comfy" value="comfyui" checked="">
+                <label class="form-check-label" for="backend_radio_comfy">ComfyUI (Local)</label>
+                <div class="install_hint">ComfyUI is a powerful node-based Stable Diffusion engine that runs entirely on your local PC. This option is best if you have a powerful GPU.
+                    <a href="#" onclick="javascript:$('#gpu_check_modal').modal('show')">Do I?</a> You can learn more about <a target="_blank" href="https://github.com/comfyanonymous/ComfyUI">ComfyUI here</a>.
+                </div>
+            </div>
+            <hr>
+            <h3>For Experienced Users: Skip Backend Install</h3>
+            <div class="install_hint">You can configure custom backends post-install.</div>
+            <br>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="backend_radio" id="backend_radio_none" value="none">
+                <label class="form-check-label" for="backend_radio_none">None / Custom / Choose Later</label>
+                <div class="install_hint">If you have a pre-existing backend installation (eg ComfyUI, Auto WebUI, etc) or want to deal with it later, click here. You can configure backends under the Server tab of the main interface.</div>
+            </div>
+        </fieldset>
+    </div>
+
+    <div id="installer_section_models" style="display: none;">
+        <div class="install_q_head">Download Models</div>
+        <div class="install_hint">You can select models to automatically download for local running here.</div>
+        <br>
+        <fieldset class="form-group" id="models_fieldset">
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="downloadmodel_zimage" checked="">
+                <label class="form-check-label" for="downloadmodel_zimage">Z-Image Turbo</label>
+                <div class="install_hint">Z-Image Turbo is the best-of-the-best model you can use as of late 2025/early 2026. It requires more memory than SDXL, but less than most other large models.</div>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="downloadmodel_sdxl1" checked="">
+                <label class="form-check-label" for="downloadmodel_sdxl1">Stable Diffusion XL 1.0 (Base)</label>
+                <div class="install_hint">SDXL is a very popular core Stable Diffusion version (from July 2023), requiring 6.5 GiB of drive space and a decent GPU, it was amazing for its time but is now largely a legacy model. It still frequently used as a base for other model finetunes.</div>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="downloadmodel_fluxdev">
+                <label class="form-check-label" for="downloadmodel_fluxdev">Flux.1 Dev</label>
+                <div class="install_hint">Flux.1 from Black Forest Labs (the new company of the research team that originally built Stable Diffusion) is a very large model (12B DiT with 5B textenc) requiring a powerful GPU, but creates the highest quality results in the world (as of July 2024). Flux supports almost any resolution or aspect ratio (at least from 256x256 to 1536x1536). The 'Dev' variant specifically is a Steps=20 CFG=1 'guidance distilled' version that takes longer to run but yields even higher quality.</div>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="downloadmodel_sd35large">
+                <label class="form-check-label" for="downloadmodel_sd35large">Stable Diffusion 3.5 Large</label>
+                <div class="install_hint">Stable Diffusion 3.5 Large (released October 2024), is a very large (8B DiT) model requiring a powerful GPU, and competitive quality close to Flux.1 Dev.</div>
+            </div>
+        </fieldset>
+        <label>Or community models!</label>
+        <div class="install_hint">You can download an endless variety of community-made models from online sites such as <a href="https://huggingface.co/spaces/huggingface-projects/diffusers-gallery" target="_blank" rel="noopener noreferrer">HuggingFace</a> or <a href="https://civitai.com/" target="_blank" rel="noopener noreferrer">Civitai</a>. (NOTICE: These are examples of third-party websites featuring user-submitted models, We offer no guarantees about what content may exist there, browse with caution.) Remember to only download '.safetensors' files, never '.ckpt' ones.</div>
+    </div>
+
+    <div id="installer_section_end" style="display: none;">
+        You have selected:
+        <br>&bullet; Theme: <span class="final_confirm_info" id="theme_val_info"></span>
+        <br>&bullet; UI Is For: <span class="final_confirm_info" id="installed_for_val_info"></span>
+        <br>&bullet; Backend: <span class="final_confirm_info" id="backend_val_info"></span>
+        <br>&bullet; Model: <span class="final_confirm_info" id="model_val_info"></span>
+        <br>Are you sure this is all correct?
+        <div class="install_hint">This is your last chance to go back and change before installing. If you want to change your choices later, there's a settings menu available within SwarmUI, and models can be downloaded any time you wish and put in the models folder.</div>
+        <br><button id="installer_button_confirm" class="btn btn-primary basic-button" autocomplete="off">Yes, I'm sure (Install Now)</button>
+        <div class="install_output" id="install_output"></div>
+        <div class="install_output" id="install_progress_spot"></div>
+        <div class="install_progress_bar" id="install_progress_bar"></div>
+        <div class="install_progress_step_bar" id="install_progress_step_bar"></div>
+    </div>
+    <hr>
+    <div class="section_buttons">
+        <span id="bottom_info"></span>
+        <button id="installer_button_back" class="btn btn-primary basic-button" disabled autocomplete="off">Back</button>
+        <button id="installer_button_next" class="btn btn-primary basic-button" autocomplete="off">Agree</button>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="js/installer.js?vary=@Utilities.VaryID"></script>
+}
