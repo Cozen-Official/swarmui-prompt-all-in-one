@@ -871,6 +871,7 @@ export default {
             const negTextarea = document.getElementById('alt_negativeprompt_textbox')
             if (!posTextarea || !negTextarea) return
             if (!document.getElementById('swarm_pos_prompt')) {
+                if (!posTextarea.parentNode) return
                 const posOuter = document.createElement('div')
                 posOuter.id = 'swarm_pos_outer'
                 const posInner = document.createElement('div')
@@ -885,6 +886,7 @@ export default {
             const brElem = altPromptTextboxes.querySelector('br')
             if (brElem) brElem.remove()
             if (!document.getElementById('swarm_neg_prompt')) {
+                if (!negTextarea.parentNode) return
                 const negOuter = document.createElement('div')
                 negOuter.id = 'swarm_neg_outer'
                 const negInner = document.createElement('div')

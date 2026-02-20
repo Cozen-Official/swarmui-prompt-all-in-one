@@ -699,8 +699,10 @@ public class PromptAllInOneExtension : Extension
             new StringContent(payload.ToString(), Encoding.UTF8, "application/json"));
         string json = await response.Content.ReadAsStringAsync();
         JObject result = JObject.Parse(json);
-        if (result["error"] != null) throw new Exception(result["error"]["message"].ToString());
-        return result["data"]["translations"][0]["translatedText"].ToString();
+        if (result["error"] != null) throw new Exception(result["error"]?["message"]?.ToString() ?? "Google translation error");
+        string translated = result["data"]?["translations"]?[0]?["translatedText"]?.ToString()
+            ?? throw new Exception("Unexpected response from Google translation API");
+        return translated;
     }
 
     private static async Task<string> TranslateBaidu(string text, string from, string to, JObject config)
@@ -716,7 +718,9 @@ public class PromptAllInOneExtension : Extension
         string json = await HttpClient.GetStringAsync(url);
         JObject result = JObject.Parse(json);
         if (result["error_code"] != null) throw new Exception(result["error_msg"]?.ToString() ?? "Baidu translation error");
-        return result["trans_result"][0]["dst"].ToString();
+        string translated = result["trans_result"]?[0]?["dst"]?.ToString()
+            ?? throw new Exception("Unexpected response from Baidu translation API");
+        return translated;
     }
 
     private static async Task<string> TranslateDeepL(string text, string from, string to, JObject config)
@@ -736,10 +740,13 @@ public class PromptAllInOneExtension : Extension
             Content = new StringContent(payload.ToString(), Encoding.UTF8, "application/json")
         };
         HttpResponseMessage response = await HttpClient.SendAsync(req);
+        response.EnsureSuccessStatusCode();
         string json = await response.Content.ReadAsStringAsync();
         JObject result = JObject.Parse(json);
         if (result["message"] != null) throw new Exception(result["message"].ToString());
-        return result["translations"][0]["text"].ToString();
+        string translated = result["translations"]?[0]?["text"]?.ToString()
+            ?? throw new Exception("Unexpected response from DeepL translation API");
+        return translated;
     }
 
     private static async Task<string> TranslateOpenAI(string text, string from, string to, JObject config)
@@ -759,10 +766,13 @@ public class PromptAllInOneExtension : Extension
             Content = new StringContent(payload.ToString(), Encoding.UTF8, "application/json")
         };
         HttpResponseMessage response = await HttpClient.SendAsync(req);
+        response.EnsureSuccessStatusCode();
         string json = await response.Content.ReadAsStringAsync();
         JObject result = JObject.Parse(json);
-        if (result["error"] != null) throw new Exception(result["error"]["message"].ToString());
-        return result["choices"][0]["message"]["content"].ToString().Trim();
+        if (result["error"] != null) throw new Exception(result["error"]?["message"]?.ToString() ?? "OpenAI translation error");
+        string translated = result["choices"]?[0]?["message"]?["content"]?.ToString()?.Trim()
+            ?? throw new Exception("Unexpected response from OpenAI translation API");
+        return translated;
     }
 
     private static async Task<string> TranslateYouDao(string text, string from, string to, JObject config)
@@ -781,10 +791,13 @@ public class PromptAllInOneExtension : Extension
         };
         FormUrlEncodedContent formContent = new(payload.Properties().ToDictionary(p => p.Name, p => p.Value.ToString()));
         HttpResponseMessage response = await HttpClient.PostAsync("https://openapi.youdao.com/api", formContent);
+        response.EnsureSuccessStatusCode();
         string json = await response.Content.ReadAsStringAsync();
         JObject result = JObject.Parse(json);
         if (result["errorCode"]?.ToString() != "0") throw new Exception($"YouDao error: {result["errorCode"]}");
-        return result["translation"][0].ToString();
+        string translated = result["translation"]?[0]?.ToString()
+            ?? throw new Exception("Unexpected response from YouDao translation API");
+        return translated;
     }
 
     private static string ComputeMd5(string input)
@@ -833,6 +846,11 @@ public class PromptAllInOneExtension : Extension
     private static async Task GetStyles(HttpContext context)
     {
         string file = context.Request.Query["file"].ToString();
+        if (string.IsNullOrEmpty(file))
+        {
+            context.Response.StatusCode = 400;
+            return;
+        }
         string stylesPath = Path.GetFullPath(Path.Combine(ExtFolder, "styles"));
         string filePath = Path.GetFullPath(Path.Combine(stylesPath, file));
         if ((!filePath.StartsWith(stylesPath + Path.DirectorySeparatorChar) && filePath != stylesPath) || !File.Exists(filePath))
@@ -889,7 +907,8 @@ public class PromptAllInOneExtension : Extension
     {
         JObject body = await ReadJson(context);
         string text = body?["text"]?.ToString() ?? "";
-        // Simple token estimation: count words/tokens split by common separators. Max chunk size is 75 tokens.
+        // Simple token estimation: count words/tokens split by common separators.
+        // maxLength is 75, matching CLIP's 75-token limit used by Stable Diffusion.
         int tokenCount = EstimateTokens(text);
         int maxLength = 75;
         await WriteJson(context, new JObject { ["token_count"] = tokenCount, ["max_length"] = maxLength });
@@ -946,10 +965,12 @@ public class PromptAllInOneExtension : Extension
                 Content = new StringContent(payload.ToString(), Encoding.UTF8, "application/json")
             };
             HttpResponseMessage response = await HttpClient.SendAsync(req);
+            response.EnsureSuccessStatusCode();
             string json = await response.Content.ReadAsStringAsync();
             JObject result = JObject.Parse(json);
-            if (result["error"] != null) throw new Exception(result["error"]["message"].ToString());
-            string content2 = result["choices"][0]["message"]["content"].ToString().Trim();
+            if (result["error"] != null) throw new Exception(result["error"]?["message"]?.ToString() ?? "OpenAI error");
+            string content2 = result["choices"]?[0]?["message"]?["content"]?.ToString()?.Trim()
+                ?? throw new Exception("Unexpected response from OpenAI API");
             await WriteJson(context, new JObject { ["success"] = true, ["result"] = content2 });
         }
         catch (Exception ex)
@@ -971,7 +992,7 @@ public class PromptAllInOneExtension : Extension
     {
         try
         {
-            using StreamReader reader = new(context.Request.Body);
+            using StreamReader reader = new(context.Request.Body, leaveOpen: true);
             string body = await reader.ReadToEndAsync();
             return JObject.Parse(body);
         }
@@ -982,7 +1003,6 @@ public class PromptAllInOneExtension : Extension
     {
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = 200;
-        context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
         await context.Response.WriteAsync(data.ToString(Formatting.None));
     }
 }
