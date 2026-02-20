@@ -835,7 +835,7 @@ public class PromptAllInOneExtension : Extension
         string file = context.Request.Query["file"].ToString();
         string stylesPath = Path.GetFullPath(Path.Combine(ExtFolder, "styles"));
         string filePath = Path.GetFullPath(Path.Combine(stylesPath, file));
-        if (!filePath.StartsWith(stylesPath) || !File.Exists(filePath))
+        if ((!filePath.StartsWith(stylesPath + Path.DirectorySeparatorChar) && filePath != stylesPath) || !File.Exists(filePath))
         {
             context.Response.StatusCode = 404;
             return;
