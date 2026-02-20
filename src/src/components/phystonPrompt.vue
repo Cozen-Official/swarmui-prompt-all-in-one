@@ -604,7 +604,7 @@ export default {
         },
         steps: {
             type: Object,
-            required: true,
+            default: null,
         },
         canOneTranslate: {
             type: Boolean,
@@ -1097,7 +1097,8 @@ export default {
         updateTags() {
             console.log('tags change', this.tags)
             this.updatePrompt()
-            const steps = this.steps.querySelector('input[type="number"]').value
+            const stepsInput = this.steps ? this.steps.querySelector('input[type="number"]') : null
+            const steps = stepsInput ? stepsInput.value : 20
             if (!this.$appMode) {
                 this.gradioAPI.tokenCounter(this.textarea.value, steps).then(res => {
                     const {token_count, max_length} = res

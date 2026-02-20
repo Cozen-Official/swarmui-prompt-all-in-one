@@ -492,17 +492,8 @@ export default {
      * @returns {string}
      */
     apiUrl() {
-        let url
-        url = window.location.origin + window.location.pathname
-        url += url.endsWith('/') ? '' : '/'
-        url += 'physton_prompt/'
-        /*if (typeof gradioURL === "string" && gradioURL !== "") {
-            url = new URL(gradioURL)
-            url = url.origin
-        } else {
-            url = window.location.origin
-        }*/
-        return url
+        // SwarmUI serves routes at the origin root, not at the page path
+        return window.location.origin + '/physton_prompt/'
     },
 
     /**
@@ -587,6 +578,12 @@ export default {
     gradioContainer: null,
     gradioApp() {
         if (this.gradioContainer) return this.gradioContainer
+        // SwarmUI: no gradio-app element, use document.body directly
+        if (!document.getElementsByTagName('gradio-app').length) {
+            document.body.classList.add("physton-gradio-container")
+            this.gradioContainer = document.body
+            return document.body
+        }
         const elems = document.getElementsByTagName('gradio-app')
         const gradioShadowRoot = elems.length == 0 ? null : elems[0].shadowRoot
         if (gradioShadowRoot) {

@@ -198,96 +198,50 @@ export default {
         return {
             prompts: [
                 {
-                    tab: 'tab_txt2img',
-                    prompt: 'txt2img_prompt',
-                    counter: 'txt2img_token_counter',
-                    button: 'txt2img_token_button',
-                    steps: 'txt2img_steps',
-                    historyKey: 'txt2img',
-                    favoriteKey: 'txt2img',
+                    tab: 'Text2Image',
+                    prompt: 'swarm_pos_prompt',
+                    counter: null,
+                    button: null,
+                    steps: null,
+                    historyKey: 'swarm',
+                    favoriteKey: 'swarm',
                     $prompt: null,
                     $textarea: null,
                     $steps: null,
-                    name: 'txt2img_prompt',
+                    name: 'swarm_pos_prompt',
                     neg: false,
-                    hideDefaultInputKey: 'txt2ImgHideDefaultInput',
-                    hideDefaultInput: false,
-                    autoLoadWebuiPromptKey: 'txt2ImgAutoLoadWebuiPrompt',
+                    hideDefaultInputKey: 'swarmHideDefaultInput',
+                    hideDefaultInput: true,
+                    autoLoadWebuiPromptKey: 'swarmAutoLoadWebuiPrompt',
                     autoLoadWebuiPrompt: true,
-                    hidePanelKey: 'txt2ImgHidePanel',
+                    hidePanelKey: 'swarmHidePanel',
                     hidePanel: false,
-                    hideGroupTagsKey: 'txt2ImgHideGroupTags',
+                    hideGroupTagsKey: 'swarmHideGroupTags',
                     hideGroupTags: false,
-                    id: 'phystonPrompt_txt2img_prompt'
+                    id: 'phystonPrompt_swarm_pos_prompt'
                 },
                 {
-                    tab: 'tab_txt2img',
-                    prompt: 'txt2img_neg_prompt',
-                    counter: 'txt2img_negative_token_counter',
-                    button: 'txt2img_negative_token_button',
-                    steps: 'txt2img_steps',
-                    historyKey: 'txt2img_neg',
-                    favoriteKey: 'txt2img_neg',
+                    tab: 'Text2Image',
+                    prompt: 'swarm_neg_prompt',
+                    counter: null,
+                    button: null,
+                    steps: null,
+                    historyKey: 'swarm_neg',
+                    favoriteKey: 'swarm_neg',
                     $prompt: null,
                     $textarea: null,
                     $steps: null,
-                    name: 'txt2img_neg_prompt',
+                    name: 'swarm_neg_prompt',
                     neg: true,
-                    hideDefaultInputKey: 'txt2ImgNegHideDefaultInput',
-                    hideDefaultInput: false,
-                    autoLoadWebuiPromptKey: 'txt2ImgNegAutoLoadWebuiPrompt',
+                    hideDefaultInputKey: 'swarmNegHideDefaultInput',
+                    hideDefaultInput: true,
+                    autoLoadWebuiPromptKey: 'swarmNegAutoLoadWebuiPrompt',
                     autoLoadWebuiPrompt: true,
-                    hidePanelKey: 'txt2ImgNegHidePanel',
+                    hidePanelKey: 'swarmNegHidePanel',
                     hidePanel: false,
-                    hideGroupTagsKey: 'txt2ImgNegHideGroupTags',
+                    hideGroupTagsKey: 'swarmNegHideGroupTags',
                     hideGroupTags: false,
-                    id: 'phystonPrompt_txt2img_neg_prompt'
-                },
-                {
-                    tab: 'tab_img2img',
-                    prompt: 'img2img_prompt',
-                    counter: 'img2img_token_counter',
-                    button: 'img2img_token_button',
-                    steps: 'img2img_steps',
-                    historyKey: 'img2img',
-                    favoriteKey: 'img2img',
-                    $prompt: null,
-                    $textarea: null,
-                    $steps: null,
-                    name: 'img2img_prompt',
-                    neg: false,
-                    hideDefaultInputKey: 'img2ImgHideDefaultInput',
-                    hideDefaultInput: false,
-                    autoLoadWebuiPromptKey: 'img2ImgAutoLoadWebuiPrompt',
-                    autoLoadWebuiPrompt: true,
-                    hidePanelKey: 'img2ImgHidePanel',
-                    hidePanel: false,
-                    hideGroupTagsKey: 'img2ImgHideGroupTags',
-                    hideGroupTags: false,
-                    id: 'phystonPrompt_img2img_prompt'
-                },
-                {
-                    tab: 'tab_img2img',
-                    prompt: 'img2img_neg_prompt',
-                    counter: 'img2img_negative_token_counter',
-                    button: 'img2img_negative_token_button',
-                    steps: 'img2img_steps',
-                    historyKey: 'img2img_neg',
-                    favoriteKey: 'img2img_neg',
-                    $prompt: null,
-                    $textarea: null,
-                    $steps: null,
-                    name: 'img2img_neg_prompt',
-                    neg: true,
-                    hideDefaultInputKey: 'img2ImgNegHideDefaultInput',
-                    hideDefaultInput: false,
-                    autoLoadWebuiPromptKey: 'img2ImgNegAutoLoadWebuiPrompt',
-                    autoLoadWebuiPrompt: true,
-                    hidePanelKey: 'img2ImgNegHidePanel',
-                    hidePanel: false,
-                    hideGroupTagsKey: 'img2ImgNegHideGroupTags',
-                    hideGroupTags: false,
-                    id: 'phystonPrompt_img2img_neg_prompt'
+                    id: 'phystonPrompt_swarm_neg_prompt'
                 },
             ],
             languageCode: '',
@@ -841,6 +795,10 @@ export default {
                 this.updateTranslateApiConfig()
                 this.$refs.extensionCss.init()
 
+                this.createSwarmWrappers()
+                const swarmFakeSteps = document.createElement('div')
+                swarmFakeSteps.innerHTML = '<input type="number" value="20">'
+
                 this.prompts.forEach(item => {
                     if (data[item.hideDefaultInputKey] !== null) {
                         item.hideDefaultInput = data[item.hideDefaultInputKey]
@@ -856,7 +814,7 @@ export default {
                     }
                     item.$prompt = common.gradioApp().querySelector("#" + item.prompt)
                     item.$textarea = item.$prompt.getElementsByTagName("textarea")[0]
-                    item.$steps = common.gradioApp().querySelector("#" + item.steps)
+                    item.$steps = item.steps ? common.gradioApp().querySelector("#" + item.steps) : swarmFakeSteps
                 })
                 this.$nextTick(() => {
                     this.prompts.forEach(item => {
@@ -905,6 +863,41 @@ export default {
                     clientX: 283,
                 })*/
             })
+        },
+        createSwarmWrappers() {
+            const altPromptTextboxes = document.querySelector('.alt_prompt_textboxes')
+            if (!altPromptTextboxes) return
+            const posTextarea = document.getElementById('alt_prompt_textbox')
+            const negTextarea = document.getElementById('alt_negativeprompt_textbox')
+            if (!posTextarea || !negTextarea) return
+            if (!document.getElementById('swarm_pos_prompt')) {
+                if (!posTextarea.parentNode) return
+                const posOuter = document.createElement('div')
+                posOuter.id = 'swarm_pos_outer'
+                const posInner = document.createElement('div')
+                posInner.id = 'swarm_pos_inner'
+                const posWrapper = document.createElement('div')
+                posWrapper.id = 'swarm_pos_prompt'
+                posTextarea.parentNode.insertBefore(posOuter, posTextarea)
+                posOuter.appendChild(posInner)
+                posInner.appendChild(posWrapper)
+                posWrapper.appendChild(posTextarea)
+            }
+            const brElem = altPromptTextboxes.querySelector('br')
+            if (brElem) brElem.remove()
+            if (!document.getElementById('swarm_neg_prompt')) {
+                if (!negTextarea.parentNode) return
+                const negOuter = document.createElement('div')
+                negOuter.id = 'swarm_neg_outer'
+                const negInner = document.createElement('div')
+                negInner.id = 'swarm_neg_inner'
+                const negWrapper = document.createElement('div')
+                negWrapper.id = 'swarm_neg_prompt'
+                negTextarea.parentNode.insertBefore(negOuter, negTextarea)
+                negOuter.appendChild(negInner)
+                negInner.appendChild(negWrapper)
+                negWrapper.appendChild(negTextarea)
+            }
         },
         loadGroupTags() {
             return this.gradioAPI.getGroupTags(this.languageCode).then(data => {
