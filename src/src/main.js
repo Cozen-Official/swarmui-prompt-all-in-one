@@ -7,7 +7,26 @@ import CommonMixin from "@/mixins/commonMixin"
 import common from "@/utils/common"
 import tippy from "tippy.js"
 
-onUiLoaded(async () => {
+function swarmWaitForUI(callback) {
+    if (document.getElementById('alt_prompt_textbox')) {
+        callback();
+    } else {
+        let attempts = 0;
+        const maxAttempts = 300; // 30 seconds timeout (300 * 100ms)
+        const interval = setInterval(() => {
+            attempts++;
+            if (document.getElementById('alt_prompt_textbox')) {
+                clearInterval(interval);
+                callback();
+            } else if (attempts >= maxAttempts) {
+                clearInterval(interval);
+                console.warn('[physton-prompt-all-in-one] Timed out waiting for SwarmUI prompt element.');
+            }
+        }, 100);
+    }
+}
+
+const _initFn = async () => {
     const div = document.createElement('div')
     div.id    = 'physton-prompt-all-in-one'
     common.gradioApp().appendChild(div)
@@ -62,5 +81,11 @@ onUiLoaded(async () => {
     })
 
     app.mount(div)
-})
+}
+
+if (typeof onUiLoaded === 'function') {
+    onUiLoaded(_initFn)
+} else {
+    swarmWaitForUI(_initFn)
+}
 

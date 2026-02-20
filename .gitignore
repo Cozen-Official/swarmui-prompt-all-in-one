@@ -5,3 +5,6 @@
 /src/package-lock.json
 /styles/extensions/demo
 __pycache__
+/SwarmUI/src/bin/
+/SwarmUI/src/obj/Debug/
+/SwarmUI/src/Extensions/
