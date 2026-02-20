@@ -1,0 +1,89 @@
+name: Test SwarmUI Extension Loading
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-swarmui-loading:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout extension
+        uses: actions/checkout@v4
+        with:
+          path: extension
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Clone SwarmUI
+        run: git clone --depth=1 https://github.com/mcmonkeyprojects/SwarmUI.git SwarmUI
+
+      # On Linux, MSBuild resolves symlinks to their physical path, which breaks the
+      # relative paths inside SwarmUI.extension.props.  Copying into the Extensions
+      # directory is equivalent to a Windows directory junction (mklink /J) and
+      # keeps the relative-path structure that SwarmUI expects.
+      - name: Install extension into SwarmUI/src/Extensions/
+        run: cp -r extension SwarmUI/src/Extensions/swarmui-prompt-all-in-one
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-swarmui-${{ hashFiles('SwarmUI/src/SwarmUI.deps.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-swarmui-
+
+      - name: Build SwarmUI
+        run: dotnet build src/SwarmUI.csproj --configuration Release -o ./src/bin/live_release
+        working-directory: SwarmUI
+
+      - name: Run SwarmUI and verify extension loads
+        run: |
+          # Start SwarmUI with no browser launch; redirect all output to a log file.
+          dotnet ./src/bin/live_release/SwarmUI.dll --launch_mode none \
+            > /tmp/swarm_output.txt 2>&1 &
+          SWARM_PID=$!
+          echo "SwarmUI started (PID: $SWARM_PID). Waiting for extension load..."
+
+          # Poll once per second for up to 120 seconds.  That window covers a first-time
+          # NuGet restore plus the extension compile SwarmUI performs during startup.
+          SUCCESS=false
+          for i in $(seq 1 120); do
+            sleep 1
+            if grep -qF "Prepping extension: PromptAllInOne.PromptAllInOneExtension" \
+                /tmp/swarm_output.txt 2>/dev/null; then
+              SUCCESS=true
+              break
+            fi
+            # Abort early if SwarmUI has already exited.
+            if ! kill -0 "$SWARM_PID" 2>/dev/null; then
+              echo "SwarmUI process exited before extension was loaded."
+              break
+            fi
+          done
+
+          # Terminate SwarmUI regardless of outcome.
+          kill "$SWARM_PID" 2>/dev/null || true
+          wait "$SWARM_PID" 2>/dev/null || true
+
+          echo ""
+          echo "=== SwarmUI console output ==="
+          cat /tmp/swarm_output.txt
+
+          if [ "$SUCCESS" = "true" ]; then
+            echo ""
+            echo "✅ Extension PromptAllInOneExtension was loaded by SwarmUI!"
+          else
+            echo ""
+            echo "❌ Extension was NOT loaded by SwarmUI."
+            exit 1
+          fi
+        working-directory: SwarmUI
