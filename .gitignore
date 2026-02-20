@@ -9,3 +9,4 @@ __pycache__
 /SwarmUI/src/obj/
 /SwarmUI/src/Extensions/
 SwarmAutoGenExtensionProjectFile.csproj
+/swarmui_*.png
