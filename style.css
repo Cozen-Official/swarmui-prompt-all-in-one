@@ -32,14 +32,24 @@ body.physton-gradio-container #alt_prompt_region .physton-prompt {
     margin-bottom: 4px !important;
 }
 
-/* 4. Tag-chip backgrounds are nearly transparent (rgba(0,187,255,0.1)
-      and rgba(0,0,0,0.06)) and invisible on SwarmUI's dark theme.
-      Override with opaque-enough values. */
+/* 4. Tag-chip backgrounds: nearly transparent values invisible on SwarmUI's
+      dark background.  Override with opaque blues matching the tag selector.
+      Category selector chips ("tag-local" / "tag-en" in the popup grid): */
 body.physton-gradio-container {
     --pp-pt-gt-gb-gm-sgm-gt-ti-tagLocal-background: rgba(50, 80, 130, 0.85);
     --pp-pt-gt-gb-gm-sgm-gt-ti-tagLocal-color: #d0e4f8;
     --pp-pt-gt-gb-gm-sgm-gt-ti-tagEn-background: rgba(35, 55, 90, 0.80);
     --pp-pt-gt-gb-gm-sgm-gt-ti-tagEn-color: #88aacc;
+
+    /* Prompt-builder chips (already-selected tags with × buttons).
+       Default is rgba(0,0,0,0.06) — invisible on dark background.
+       Tags that have an explicit colour (e.g. orange) use inline
+       style="background:…" which always wins over CSS variables,
+       so those are unaffected. */
+    --pp-pt-dsb-ptl-pt-ptm-pte-promptTagValue-background: rgba(40, 65, 110, 0.85);
+    --pp-pt-dsb-ptl-pt-ptm-pte-promptTagValue-color: #c8d8ec;
+    --pp-pt-dsb-ptl-pt-ptm-pte-promptTagValueHover-background: rgba(60, 95, 160, 0.90);
+    --pp-pt-dsb-ptl-pt-ptm-pte-promptTagValueHover-color: #dce9f8;
 }
 
 /* 5. Fix "show default input" native textarea sizing.

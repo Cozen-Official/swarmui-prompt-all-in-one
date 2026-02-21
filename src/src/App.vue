@@ -909,39 +909,78 @@ export default {
 
                 // Add a draggable split bar between the image-area section and the
                 // prompt region, mirroring the existing t2i-mid-split-bar below the
-                // prompt region.  Dragging resizes t2i_top_bar (and main_image_area /
-                // current_image_wrapbox) while keeping the prompt region in normal flow.
+                // prompt region.  Dragging resizes ALL three top-section columns
+                // (left params, centre image, right batch) simultaneously.
                 if (!document.getElementById('swarm-prompt-top-split-bar')) {
                     const topSplitBar = document.createElement('div')
                     topSplitBar.id = 'swarm-prompt-top-split-bar'
                     topSplitBar.className = 't2i-mid-split-bar splitter-bar'
                     t2iTopBarContainer.parentNode.insertBefore(topSplitBar, altPromptRegion)
 
-                    const topBar      = document.getElementById('t2i_top_bar')
-                    const mainImgArea = document.getElementById('main_image_area')
-                    const wrapbox     = document.getElementById('current_image_wrapbox')
-                    if (topBar && mainImgArea && wrapbox) {
-                        let customTopH = null  // null = SwarmUI default (50 vh)
+                    const topBar       = document.getElementById('t2i_top_bar')
+                    const mainImgArea  = document.getElementById('main_image_area')
+                    const wrapbox      = document.getElementById('current_image_wrapbox')
+                    const inputSidebar = document.getElementById('input_sidebar')
+                    const batchWrapper = document.getElementById('current_image_batch_wrapper')
+                    if (topBar && mainImgArea && wrapbox && inputSidebar && batchWrapper) {
+                        // Height locked by the user dragging our top split bar.
+                        // null = no lock; SwarmUI's CSS (50 vh) applies.
+                        let customTopH = null
                         let draggingTop = false
 
-                        // Apply a user-chosen top-section height to all three elements.
+                        // Apply a pixel height to ALL top-section column elements.
+                        // Does NOT update customTopH — callers manage that separately.
                         const applyTopH = (pxH) => {
-                            customTopH = pxH
-                            topBar.style.height      = pxH + 'px'
-                            mainImgArea.style.height = pxH + 'px'
+                            topBar.style.height       = pxH + 'px'
+                            mainImgArea.style.height  = pxH + 'px'
+                            inputSidebar.style.height = pxH + 'px'
+                            batchWrapper.style.height = pxH + 'px'
                             // Wrapbox needs 1 rem (≈ 16 px) headroom for padding.
                             // Floor at 30 px so the wrapbox is never fully hidden.
                             const wbH = Math.max(30, pxH - 16)
                             wrapbox.style.setProperty('height', wbH + 'px', 'important')
                         }
 
-                        // SwarmUI's reapplyPositions() clears inline heights in normal
-                        // mode.  Detect that clear and immediately reapply our custom value.
-                        new MutationObserver(() => {
-                            if (customTopH !== null && !topBar.style.height) {
-                                applyTopH(customTopH)
+                        // Monkey-patch SwarmUI's reapplyPositions() to fix two problems:
+                        //
+                        // (a) Issue 1 — all columns: after origReapply() sets the three
+                        //     column heights, ensure our applyTopH() keeps them in sync.
+                        //
+                        // (b) Issue 2 — bottom split bar interaction: SwarmUI's bottom drag
+                        //     computes bottomSectionBarPos without knowing about our extra
+                        //     elements (topSplitBar 5 px + altPromptRegion ~270 px) that sit
+                        //     between .t2i-top-bar-container and #t2i-mid-split-bar.  This
+                        //     makes topSection.style.height ~275 px too large, pushing our
+                        //     top split bar down on every bottom-bar drag.
+                        //     Fix: after origReapply sets topSection height, subtract extraH
+                        //     so #t2i-mid-split-bar ends up exactly where the mouse is.
+                        //
+                        // genTabLayout is declared with 'let' in SwarmUI's layout.js (a
+                        // non-module <script>), so it lives in the script global scope but
+                        // NOT on window.  Use typeof-guard to access it safely.
+                        // eslint-disable-next-line no-undef
+                        const swarmLayout = (typeof genTabLayout !== 'undefined') ? genTabLayout : null
+                        if (swarmLayout) {
+                            const origReapply = swarmLayout.reapplyPositions.bind(swarmLayout)
+                            swarmLayout.reapplyPositions = function () {
+                                origReapply()
+                                if (customTopH !== null) {
+                                    // User locked the image-area height — enforce it regardless
+                                    // of what the bottom drag or default-mode calculation says.
+                                    applyTopH(customTopH)
+                                } else if (topBar.style.height && !swarmLayout.bottomShut) {
+                                    // Bottom-drag mode: SwarmUI set topSection height to
+                                    // calc(100vh - bottomSectionBarPos), which is too large by
+                                    // extraH.  Subtract to place #t2i-mid-split-bar correctly.
+                                    const swarmH = topBar.getBoundingClientRect().height
+                                    const extraH = (topSplitBar.offsetHeight || 5) +
+                                                   (altPromptRegion.offsetHeight || 0)
+                                    applyTopH(Math.max(80, swarmH - extraH))
+                                }
+                                // Default mode (topBar.style.height == ''): SwarmUI cleared
+                                // heights; CSS (50 vh) takes over.  No override needed.
                             }
-                        }).observe(topBar, { attributes: true, attributeFilter: ['style'] })
+                        }
 
                         topSplitBar.addEventListener('mousedown', (e) => {
                             draggingTop = true
@@ -961,7 +1000,8 @@ export default {
                             // least 120 px for the prompt region + model bar below.
                             const minH = 80
                             const maxH = window.innerHeight - 120
-                            applyTopH(Math.min(maxH, Math.max(minH, Math.round(pageY - rootTop))))
+                            customTopH = Math.min(maxH, Math.max(minH, Math.round(pageY - rootTop)))
+                            applyTopH(customTopH)
                         }
                         document.addEventListener('mousemove', (e) => onTopMove(e.pageY))
                         document.addEventListener('touchmove', (e) => onTopMove(e.touches[0].pageY))
