@@ -21,7 +21,10 @@ public class PromptAllInOneExtension : Extension
         ExtFolder = FilePath;
         ScriptFiles.Add("javascript/main.entry.js");
         StyleSheetFiles.Add("style.css");
+    }
 
+    public override void OnPreLaunch()
+    {
         WebServer.WebApp.MapGet("/physton_prompt/get_config", GetConfig);
         WebServer.WebApp.MapGet("/physton_prompt/get_version", GetVersion);
         WebServer.WebApp.MapGet("/physton_prompt/get_data", GetData);
