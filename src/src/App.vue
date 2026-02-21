@@ -906,6 +906,69 @@ export default {
             const t2iTopBarContainer = document.querySelector('.t2i-top-bar-container')
             if (altPromptRegion && t2iTopBarContainer && t2iTopBarContainer.parentNode) {
                 t2iTopBarContainer.parentNode.insertBefore(altPromptRegion, t2iTopBarContainer.nextSibling)
+
+                // Add a draggable split bar between the image-area section and the
+                // prompt region, mirroring the existing t2i-mid-split-bar below the
+                // prompt region.  Dragging resizes t2i_top_bar (and main_image_area /
+                // current_image_wrapbox) while keeping the prompt region in normal flow.
+                if (!document.getElementById('swarm-prompt-top-split-bar')) {
+                    const topSplitBar = document.createElement('div')
+                    topSplitBar.id = 'swarm-prompt-top-split-bar'
+                    topSplitBar.className = 't2i-mid-split-bar splitter-bar'
+                    t2iTopBarContainer.parentNode.insertBefore(topSplitBar, altPromptRegion)
+
+                    const topBar      = document.getElementById('t2i_top_bar')
+                    const mainImgArea = document.getElementById('main_image_area')
+                    const wrapbox     = document.getElementById('current_image_wrapbox')
+                    if (topBar && mainImgArea && wrapbox) {
+                        let customTopH = null  // null = SwarmUI default (50 vh)
+                        let draggingTop = false
+
+                        // Apply a user-chosen top-section height to all three elements.
+                        const applyTopH = (pxH) => {
+                            customTopH = pxH
+                            topBar.style.height      = pxH + 'px'
+                            mainImgArea.style.height = pxH + 'px'
+                            // Wrapbox needs 1 rem (≈ 16 px) headroom for padding.
+                            // Floor at 30 px so the wrapbox is never fully hidden.
+                            const wbH = Math.max(30, pxH - 16)
+                            wrapbox.style.setProperty('height', wbH + 'px', 'important')
+                        }
+
+                        // SwarmUI's reapplyPositions() clears inline heights in normal
+                        // mode.  Detect that clear and immediately reapply our custom value.
+                        new MutationObserver(() => {
+                            if (customTopH !== null && !topBar.style.height) {
+                                applyTopH(customTopH)
+                            }
+                        }).observe(topBar, { attributes: true, attributeFilter: ['style'] })
+
+                        topSplitBar.addEventListener('mousedown', (e) => {
+                            draggingTop = true
+                            e.preventDefault()
+                        }, true)
+                        topSplitBar.addEventListener('touchstart', (e) => {
+                            draggingTop = true
+                            e.preventDefault()
+                        }, true)
+
+                        const onTopMove = (pageY) => {
+                            if (!draggingTop) return
+                            // SwarmUI's Text2Image pane starts ~42 px below the window top
+                            // (nav bar height).  Fall back to 42 if the element is not found.
+                            const rootTop = (document.getElementById('Text2Image')?.getBoundingClientRect().top) ?? 42
+                            // Enforce a minimum image-area height (80 px) and leave at
+                            // least 120 px for the prompt region + model bar below.
+                            const minH = 80
+                            const maxH = window.innerHeight - 120
+                            applyTopH(Math.min(maxH, Math.max(minH, Math.round(pageY - rootTop))))
+                        }
+                        document.addEventListener('mousemove', (e) => onTopMove(e.pageY))
+                        document.addEventListener('touchmove', (e) => onTopMove(e.touches[0].pageY))
+                        document.addEventListener('mouseup', () => { draggingTop = false })
+                        document.addEventListener('touchend', () => { draggingTop = false })
+                    }
+                }
             }
         },
         loadGroupTags() {
