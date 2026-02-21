@@ -177,8 +177,22 @@ SETTINGS_EOF
   success "Settings file written to $SETTINGS_FILE"
 fi
 
-# ── 7. Build SwarmUI ──────────────────────────────────────────────────────────
-echo "── Step 7: Build SwarmUI ─────────────────────────────────────────────"
+# ── 7. Copy Autocompletions tag files ─────────────────────────────────────────
+echo "── Step 7: Copy Autocompletions tag files ────────────────────────────"
+
+AUTOCOMPLETIONS_SRC="$REPO_DIR/tests/Autocompletions"
+AUTOCOMPLETIONS_DEST="$SWARM_DIR/Data/Autocompletions"
+
+if [[ -d "$AUTOCOMPLETIONS_SRC" ]]; then
+  mkdir -p "$AUTOCOMPLETIONS_DEST"
+  cp -r "$AUTOCOMPLETIONS_SRC/." "$AUTOCOMPLETIONS_DEST/"
+  success "Autocompletions copied to $AUTOCOMPLETIONS_DEST"
+else
+  warn "No Autocompletions folder found at $AUTOCOMPLETIONS_SRC — skipping."
+fi
+
+# ── 8. Build SwarmUI ──────────────────────────────────────────────────────────
+echo "── Step 8: Build SwarmUI ─────────────────────────────────────────────"
 
 BINARY="$SWARM_DIR/src/bin/live_release/SwarmUI.dll"
 
@@ -198,7 +212,7 @@ else
   success "SwarmUI built (full log: $BUILD_LOG)"
 fi
 
-# ── 8. Optional: start SwarmUI ────────────────────────────────────────────────
+# ── 9. Optional: start SwarmUI ────────────────────────────────────────────────
 if [[ "$START_SWARM" == "false" ]]; then
   echo ""
   echo "Setup complete (--no-start)."
@@ -207,7 +221,7 @@ if [[ "$START_SWARM" == "false" ]]; then
   exit 0
 fi
 
-echo "── Step 8: Start SwarmUI ─────────────────────────────────────────────"
+echo "── Step 9: Start SwarmUI ─────────────────────────────────────────────"
 
 # Kill any leftover SwarmUI process on this port
 EXISTING_PID=$(lsof -ti tcp:"$SWARM_PORT" 2>/dev/null || true)

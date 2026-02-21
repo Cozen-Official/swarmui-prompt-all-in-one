@@ -815,20 +815,20 @@ export default {
             times.forEach((time) => {
                 if (isBind) return
                 setTimeout(() => {
-                    // console.log(this.name, '1111111111111111111111')
                     if (isBind) return
-                    // console.log(this.name, '3333333333333333333333')
+                    // SwarmUI autocomplete integration
+                    if (typeof promptTabComplete !== 'undefined' && typeof promptTabComplete.enableFor === 'function') {
+                        isBind = true
+                        promptTabComplete.enableFor(this.$refs.promptTagAppend)
+                        return
+                    }
+                    // A1111 sd-webui-tagcomplete fallback
                     if (typeof addAutocompleteToArea !== 'function') return
-                    // console.log(this.name, '4444444444444444444444')
                     if (typeof TAC_CFG !== 'object') return
-                    // console.log(this.name, '5555555555555555555555')
                     if (!TAC_CFG) return
-                    // console.log(this.name, '6666666666666666666666')
                     if (!TAC_CFG['activeIn']) return
-                    // console.log(this.name, '7777777777777777777777')
                     isBind = true
                     addAutocompleteToArea(this.$refs.promptTagAppend)
-                    // console.log(this.name, '2222222222222222222222')
                 }, time)
             })
             this.init()
