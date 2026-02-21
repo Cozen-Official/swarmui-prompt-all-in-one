@@ -10,3 +10,4 @@ __pycache__
 /SwarmUI/src/Extensions/
 SwarmAutoGenExtensionProjectFile.csproj
 /swarmui_*.png
+/Data/
