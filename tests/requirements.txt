@@ -1,0 +1,4 @@
+# Python dependencies for SwarmUI UI integration tests.
+# Install with:  pip install -r tests/requirements.txt
+# Then install the Chromium browser:  python -m playwright install chromium
+playwright>=1.40.0
