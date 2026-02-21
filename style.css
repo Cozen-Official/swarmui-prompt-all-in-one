@@ -2,13 +2,15 @@
 
 /* =====================================================================
    SwarmUI layout fix
-   The original top:-3.5rem shifts the region up by only 56 px, leaving
-   the rest of the 241 px-tall extension UI clipped by
-   .main-image-area { overflow: hidden }.  Shifting by the full height
-   (-250 px, with 9 px safety margin) positions the panel flush against
-   the bottom of the 50 vh image area so it is fully visible.
+   alt_prompt_region normally lives inside .main-image-area which has
+   overflow:hidden, clipping the extension panels.  The JS in
+   createSwarmWrappers() moves the region to after .t2i-top-bar-container
+   so it sits in normal document flow, fully visible.  Reset the
+   position/top that SwarmUI sets so it no longer overlaps anything.
    ===================================================================== */
 body.physton-gradio-container #alt_prompt_region {
-    top: -250px !important;
-    z-index: 1 !important;
+    position: static !important;
+    top: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
 }

@@ -898,6 +898,15 @@ export default {
                 negInner.appendChild(negWrapper)
                 negWrapper.appendChild(negTextarea)
             }
+            // Move alt_prompt_region out of the overflow:hidden image containers so that
+            // the full-height extension panels are visible and not clipped.  Insert it
+            // immediately after .t2i-top-bar-container in the DOM (which places it
+            // between the top bar and the mid-split-bar, in normal document flow).
+            const altPromptRegion = document.getElementById('alt_prompt_region')
+            const t2iTopBarContainer = document.querySelector('.t2i-top-bar-container')
+            if (altPromptRegion && t2iTopBarContainer && t2iTopBarContainer.parentNode) {
+                t2iTopBarContainer.parentNode.insertBefore(altPromptRegion, t2iTopBarContainer.nextSibling)
+            }
         },
         loadGroupTags() {
             return this.gradioAPI.getGroupTags(this.languageCode).then(data => {
