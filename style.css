@@ -71,11 +71,19 @@ body.physton-gradio-container #swarm_neg_prompt {
 body.physton-gradio-container #swarm_pos_prompt textarea,
 body.physton-gradio-container #swarm_neg_prompt textarea {
     width: 100% !important;
-    min-height: 80px !important;
     box-sizing: border-box !important;
 }
 
-/* 6. Style for the custom draggable top split bar added by
+/* 6. Hide SwarmUI's native bottom split bar (between alt_prompt_region
+      and the models section).  Our top split bar already controls the
+      relative size of both sections; the native bar is redundant and
+      confusing.  We keep display:none rather than removing the element
+      so SwarmUI's layout.js can still reference it without errors. */
+body.physton-gradio-container #t2i-mid-split-bar {
+    display: none !important;
+}
+
+/* 7. Style for the custom draggable top split bar added by
       createSwarmWrappers(). Inherits hover highlight from the existing
       .t2i-mid-split-bar CSS already in genpage.css. */
 #swarm-prompt-top-split-bar {
